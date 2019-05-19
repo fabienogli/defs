@@ -7,7 +7,8 @@ services:
     build:
       context: ./supervisor
     volumes: 
-      - ./supervisor:/go/src/app/
+      - ./supervisor:/go/src/supervisor/
+    entrypoint: CompileDaemon -log-prefix=false -build="go install ./..." -command="/go/bin/supervisor"
     ports: 
       - 8080:8080
   loadbalancer:
