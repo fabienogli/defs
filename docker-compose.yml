@@ -1,3 +1,6 @@
+#todo add network configurations 
+#Do not expose service that do not require to be exposes (exemple loadbalancer :D)
+
 version: '3.4'
 services:
   supervisor: 
@@ -7,3 +10,10 @@ services:
       - ./supervisor:/go/src/app/
     ports: 
       - 8080:8080
+  loadbalancer:
+    build:
+      context: ./loadbalancer
+    volumes:
+      - ./loadbalancer:/go/src/app/
+    ports:
+      - 8081:8081
