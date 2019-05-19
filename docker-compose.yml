@@ -17,3 +17,9 @@ services:
       - ./loadbalancer:/go/src/app/
     ports:
       - 8081:8081
+    links:
+      - routing_table
+  routing_table:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
