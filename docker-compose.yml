@@ -14,7 +14,7 @@ services:
     build:
       context: ./loadbalancer
     volumes:
-      - ./loadbalancer:/go/src/app/
+      - ./loadbalancer:/go/src/loadbalancer/
     ports:
       - 8081:8081
     links:
