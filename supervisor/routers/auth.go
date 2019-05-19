@@ -2,7 +2,6 @@ package routers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"github.com/gorilla/mux"
 	u "supervisor/utils"
@@ -15,14 +14,7 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
-
-func login(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "Auth working")
-}
-
-func signin(w http.ResponseWriter, r *http.Request) {
-	creds := &Credentials{}
-	err := json.NewDecoder(r.Body).Decode(creds)
+func checkForUnprocessable(err error, w http.ResponseWriter) {
 	if err != nil {
 		code := http.StatusUnprocessableEntity
 		var msg string
@@ -34,6 +26,23 @@ func signin(w http.ResponseWriter, r *http.Request) {
 
 		u.RespondWithError(w, code, msg)
 	}
+}
+
+func login(w http.ResponseWriter, r *http.Request) {
+	creds := &Credentials{}
+	err := json.NewDecoder(r.Body).Decode(creds)
+	checkForUnprocessable(err, w)
+
+	//Check database for username/pseudo 
+	//if one is not found ==> 404 + Pair username/pseudo is wrong
+	//c.Sign()
+
+}
+
+func signin(w http.ResponseWriter, r *http.Request) {
+	creds := &Credentials{}
+	err := json.NewDecoder(r.Body).Decode(creds)
+	checkForUnprocessable(err, w)
 
 	c, err := models.NewClient(creds.Username, creds.Password);
 	if err != nil {
@@ -41,7 +50,6 @@ func signin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(c)
-	
 }
 
 func SetAuthenticationRoutes (r *mux.Router) *mux.Router {
