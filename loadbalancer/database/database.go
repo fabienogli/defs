@@ -120,6 +120,13 @@ func get(c redis.Conn) error {
 }
 
 
+func GetStorage(key uint) (Storage, error) {
+	return Storage{}, errors.New("Not implemented")
+}
+
+func GetFile(hash string) (File, error) {
+	return File{}, errors.New("Not implemented")
+}
 
 //should throw error if there is already a value cause redis overwrite set
 func (storage Storage) Create() error {
