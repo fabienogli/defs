@@ -8,5 +8,6 @@ func InitRoutes() *mux.Router {
 	router := mux.NewRouter()
 	//router = SetHelloRoutes(router)
 	router = SetAuthenticationRoutes(router)
+	router = SetDummyRoutes(router)
 	return router
 }

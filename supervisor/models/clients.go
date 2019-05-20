@@ -1,10 +1,10 @@
 package models
 
 import (
-	"log"
-	"golang.org/x/crypto/bcrypt"
-	s "supervisor/services"
 	jwt "github.com/dgrijalva/jwt-go"
+	"golang.org/x/crypto/bcrypt"
+	"log"
+	s "supervisor/services"
 )
 
 type Client struct {
