@@ -6,6 +6,8 @@ import (
 	"loadbalancer/database"
 	"errors"
 	"os"
+	"runtime"
+	"strconv"
 )
 
 func main() {
@@ -13,22 +15,42 @@ func main() {
 	if port == "" {
 		panic("Port wasn't found\n")
 	}
-	port = ":" + port
-	log.Printf("Listening on %s\n", port)
-	serverConn, _ := net.ListenUDP(
+	i, err := strconv.Atoi(port)
+	if err != nil {
+		log.Println(err)
+		panic("Error converting port from string to int")
+	}
+	addr := ":" + port
+	log.Printf("Listening on %s\n", addr)
+	serverConn, err := net.ListenUDP(
 		"udp", 
 		&net.UDPAddr{
 			IP:[]byte{0,0,0,0},
-			Port:10001,
+			Port:i,
 			Zone:"",
 			},
 	)
-	defer serverConn.Close()
-	buf := make([]byte, 1024)
-	for {
-		n, addr, _ := serverConn.ReadFromUDP(buf)
-		log.Println("Received ", string(buf[0:n]), " from ", addr)
+	if err != nil {
+
 	}
+	defer serverConn.Close()
+	quit := make(chan struct{})
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go listen(serverConn, quit)
+	}
+	<- quit
+}
+
+func listen(connection *net.UDPConn, quit chan struct{}) {
+	buffer := make([]byte, 1024)
+	n, remoteAddr, err := 0, new(net.UDPAddr), error(nil)
+	for err == nil {
+			n, remoteAddr, err = connection.ReadFromUDP(buffer)
+			log.Println("from", remoteAddr, "-", string(buffer[:n]))
+			connection.Write(buffer[:n])
+	}
+	log.Println("listener failed - ", err)
+	quit <- struct{}{}
 }
 
 //get the location of the file
