@@ -19,6 +19,8 @@ services:
       - 8081:8081
     links:
       - routing_table
+    environment:
+      port: ${LOADBALANCER_PORT}
   routing_table:
     image: "redis:alpine"
     ports:
