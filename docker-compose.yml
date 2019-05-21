@@ -15,6 +15,7 @@ services:
       - 8080:8080
     networks:
       - loadbalancingnet
+      - storenet
   loadbalancer:
     build:
       context: ./loadbalancer
@@ -27,17 +28,31 @@ services:
     networks:
       - routingnet
       - loadbalancingnet
+      - storenet
   routing_table:
     image: "redis:alpine"
     ports:
       - "6379:6379"
     networks:
       - routingnet
+  storage:
+    build:
+      context: ./storage
+    environment:
+      - TCP_PORT=2701
+      - NODE_NAME=EchoNode
+    ports:
+      - '2701:2701'
+    networks:
+      - storenet
+
 
 networks:
   routingnet:
     driver: bridge
   loadbalancingnet:
+    driver: bridge
+  storenet:
     driver: bridge
 
 

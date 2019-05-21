@@ -88,13 +88,11 @@ func (lb *LoadBalancerClient) WhereTo(hash string, sizeInKb int) {
 	}
 
 
-
-	/*
 	buf := make([]byte, 1024)
 	n, err := lb.Conn.Read(buf)
 	if err != nil {
 		log.Println("error : ", err.Error())
 	}
 
-	log.Printf("Dns received : %s\n", string(buf[:n]))*/
+	log.Printf("Dns received : %s\n", string(buf[:n]))
 }
