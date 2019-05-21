@@ -3,13 +3,18 @@
 
 version: '3.4'
 services:
-  supervisor: 
+  supervisor:
     build:
       context: ./supervisor
-    volumes: 
-      - ./supervisor:/go/src/app/
-    ports: 
+    volumes:
+      - ./supervisor:/go/src/supervisor/
+    entrypoint: CompileDaemon -log-prefix=false -build="go install ./..." -command="/go/bin/supervisor"
+    env_file:
+      - ./supervisor/.env
+    ports:
       - 8080:8080
+    networks:
+      - loadbalancingnet
   loadbalancer:
     build:
       context: ./loadbalancer
@@ -17,11 +22,23 @@ services:
       - ./loadbalancer:/go/src/loadbalancer/
     ports:
       - 8081:8081
-    links:
-      - routing_table
     environment:
       port: ${LOADBALANCER_PORT}
+    networks:
+      - routingnet
+      - loadbalancingnet
   routing_table:
     image: "redis:alpine"
     ports:
       - "6379:6379"
+    networks:
+      - routingnet
+
+networks:
+  routingnet:
+    driver: bridge
+  loadbalancingnet:
+    driver: bridge
+
+
+
