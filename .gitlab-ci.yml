@@ -4,17 +4,17 @@ services:
   - docker:dind
 
 stages:
-    - test  
+  - test
 
 format:
-    stage: test
-    variables:
-      LOADBALANCER_PORT: 8081
-    script:
-      - docker-compose build
-      - docker-compose up -d
-      - docker-compose exec -T loadbalancer go test ./...
-      - docker-compose exec -T supervisor go test ./...
-      - docker-compose down -v
-	only:
-	  - develop
+  stage: test
+  variables:
+    LOADBALANCER_PORT: 8081
+  script:
+    - docker-compose build
+    - docker-compose up -d
+    - docker-compose exec -T loadbalancer go test ./...
+    - docker-compose exec -T supervisor go test ./...
+    - docker-compose down -v
+  only:
+    - develop
