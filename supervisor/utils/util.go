@@ -19,10 +19,6 @@ func Respond(w http.ResponseWriter, data map[string] interface{})  {
 	json.NewEncoder(w).Encode(data)
 }
 
-func RespondWithError(w http.ResponseWriter, code int, message string) {
-	RespondWithJSON(w, code, map[string]string{"error": message})
-}
-
 func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
@@ -30,5 +26,15 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 }
 
 func IsDevelopmentMode() bool {
-	return os.Getenv("APP") == "development" 
+	return os.Getenv("SUPERVISORMODE") == "development"
+}
+
+func RespondWithError(w http.ResponseWriter, code int, err error) {
+	var msg string
+	if IsDevelopmentMode() {
+		msg = err.Error()
+	} else {
+		msg = http.StatusText(code)
+	}
+	RespondWithJSON(w, code, map[string]string{"error": msg})
 }

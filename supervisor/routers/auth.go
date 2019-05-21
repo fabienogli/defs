@@ -14,24 +14,13 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
-func checkForUnprocessable(err error, w http.ResponseWriter) {
-	if err != nil {
-		code := http.StatusUnprocessableEntity
-		var msg string
-		if u.IsDevelopmentMode() {
-			msg = err.Error()
-		} else {
-			msg = http.StatusText(code)
-		}
-
-		u.RespondWithError(w, code, msg)
-	}
-}
 
 func login(w http.ResponseWriter, r *http.Request) {
 	creds := &Credentials{}
 	err := json.NewDecoder(r.Body).Decode(creds)
-	checkForUnprocessable(err, w)
+	if err != nil {
+		u.RespondWithError(w, http.StatusUnprocessableEntity, err)
+	}
 
 	//Check database for username/pseudo 
 	//if one is not found ==> 404 + Pair username/pseudo is wrong
@@ -42,7 +31,9 @@ func login(w http.ResponseWriter, r *http.Request) {
 func signin(w http.ResponseWriter, r *http.Request) {
 	creds := &Credentials{}
 	err := json.NewDecoder(r.Body).Decode(creds)
-	checkForUnprocessable(err, w)
+	if err != nil {
+		u.RespondWithError(w, http.StatusUnprocessableEntity, err)
+	}
 
 	c, err := models.NewClient(creds.Username, creds.Password);
 	if err != nil {

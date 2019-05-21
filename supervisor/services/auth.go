@@ -2,10 +2,10 @@ package services
 
 import (
 	jwt "github.com/dgrijalva/jwt-go"
+	"os"
 )
 
-//@todo /!\ Irindul : Get this from os.GetEnv(JWT_SECRET)
-var TokenSecret = "mysupersecrettoken"
+var TokenSecret = os.Getenv("JWT_SECRET")
 
 type Claims struct {
 	UserId uint

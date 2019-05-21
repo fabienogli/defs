@@ -4,20 +4,18 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	s "supervisor/storage"
+	u "supervisor/utils"
 )
-
-/*
-var ip = os.Getenv("LOADBALANCER_IP")
-var port = os.Getenv("LOADBALANCER_PORT")
-*/
 
 func createFile(w http.ResponseWriter, r *http.Request) {
 
-	client, _ := s.NewLoadBalancerClient("127.0.0.1", 10001)
+	client, err := s.NewLoadBalancerClient()
+	if err != nil {
+		u.RespondWithError(w, http.StatusInternalServerError, err)
+	}
 	defer client.Close()
 
 	client.WhereTo("dummyhash", 120)
-
 
 }
 

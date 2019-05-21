@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strconv"
 )
 
 type StoreErr uint8
@@ -26,15 +28,39 @@ type LoadBalancerClient struct {
 	Messages chan string
 }
 
-func NewLoadBalancerClient(ip string, port int) (*LoadBalancerClient, error) {
-	ipAddr := net.ParseIP(ip)
-	Conn, err := net.DialUDP("udp", nil, &net.UDPAddr{
-		IP:   ipAddr,
+func GetUDPAddrOfLB() (*net.UDPAddr,error) {
+	host := os.Getenv("LOADBALANCER_IP")
+	portStr := os.Getenv("LOADBALANCER_PORT")
+
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &net.UDPAddr{
+		IP: ips[0],
 		Port: port,
 		Zone: "",
-	})
+	}, nil
+}
+
+func NewLoadBalancerClient() (*LoadBalancerClient, error) {
+
+	udpAddr, err := GetUDPAddrOfLB()
+	if err != nil {
+		log.Println("could not get UDP address of loadbalancer", err)
+		return nil, err
+	}
+
+	Conn, err := net.DialUDP("udp", nil, udpAddr)
 
 	if err != nil {
+		log.Println("error trying to dial : " +  err.Error())
 		//We don't handle the error here because we need to send it back to the client
 		// TODO irindul 2019-05-20 : Check if its timed out, maybe retry a couple of times
 		return nil, err
@@ -58,12 +84,17 @@ func (lb *LoadBalancerClient) WhereTo(hash string, sizeInKb int) {
 	query := fmt.Sprintf("%d %s %d", code, hash, sizeInKb)
 	_, err := lb.Conn.Write([]byte(query))
 	if err != nil {
-		// TODO irindul 2019-05-20 : Handle Connection closed etc...
+		log.Println("error : ", err.Error())
 	}
+
+
+
+	/*
 	buf := make([]byte, 1024)
 	n, err := lb.Conn.Read(buf)
 	if err != nil {
-		// TODO irindul 2019-05-20 : Handle error
+		log.Println("error : ", err.Error())
 	}
-	log.Printf("Dns received : %s\n", string(buf[:n]))
+
+	log.Printf("Dns received : %s\n", string(buf[:n]))*/
 }
