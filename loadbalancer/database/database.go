@@ -3,15 +3,20 @@ package database
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/gomodule/redigo/redis"
 )
 
-const FilePrefix string = "file:"
-const StoragePrefix string = "storage:"
+const (
+	FilePrefix = "file:"
+	StoragePrefix = "storage:"
+
+)
 
 type File struct {
-	Salt string
+	Hash string
 	DNS  string
 	Size uint
 }
@@ -24,37 +29,11 @@ type Storage struct {
 }
 
 type Cud interface {
-	Create() error
-	Update() error
-	Save() error
-	Delete() error
+	Create(con redis.Conn) error
+	Update(con redis.Conn) error
+	Save(conn redis.Conn) error
+	Delete(conn redis.Conn) error
 }
-
-/*
-func main() {
-	pool := newPool()
-	conn := pool.Get()
-	defer conn.Close()
-
-	err := set(conn)
-	if err != nil {
-		panic(err)
-	}
-	err = get(conn)
-	if err != nil {
-		panic(err)
-	}
-
-	err = setStruct(conn)
-	if err != nil {
-		panic(err)
-	}
-	err = getStruct(conn)
-	if err != nil {
-		panic(err)
-	}
-}
-*/
 
 func newPool() *redis.Pool {
 	return &redis.Pool{
@@ -74,89 +53,76 @@ func newPool() *redis.Pool {
 	}
 }
 
-func set(c redis.Conn) error {
-	_, err := c.Do("SET", "Favorite Movie", "Repo Man")
+func getKeys(pattern string, conn redis.Conn) ([]string, error) {
+	tmp, err := redis.Strings(conn.Do("KEYS", pattern+"*"))
 	if err != nil {
-		return err
+		return []string{}, err
 	}
-	_, err = c.Do("SET", "Release Year", 1984)
-	if err != nil {
-		return err
+	keys := make([]string, len(tmp))
+	for index, tm := range tmp {
+		key := strings.Split(tm, ":")
+		if len(key) < 1 {
+			return []string{}, fmt.Errorf("Key with the pattern %s not found\n", pattern)
+		}
+		keys[index] = key[1]
 	}
-	return nil
+	return keys, nil
 }
 
-// get executes the redis GET command
-func get(c redis.Conn) error {
-
-	// Simple GET example with String helper
-	key := "Favorite Movie"
-	s, err := redis.String(c.Do("GET", key))
+func GetStorages(conn redis.Conn) ([]Storage, error) {
+	keys, err := getKeys(StoragePrefix, conn)
 	if err != nil {
-		return (err)
+		return []Storage{}, err	
 	}
-	fmt.Printf("%s = %s\n", key, s)
-
-	// Simple GET example with Int helper
-	key = "Release Year"
-	i, err := redis.Int(c.Do("GET", key))
-	if err != nil {
-		return (err)
+	storages := make([]Storage, len(keys))
+	for index, key := range keys {
+		ukey, err := strconv.ParseUint(key, 10, 32)
+		if err != nil {
+			return []Storage{}, err
+		}
+		storages[index], err = GetStorage(uint(ukey), conn)
 	}
-	fmt.Printf("%s = %d\n", key, i)
-
-	// Example where GET returns no results
-	key = "Nonexistent Key"
-	s, err = redis.String(c.Do("GET", key))
-	if err == redis.ErrNil {
-		fmt.Printf("%s does not exist\n", key)
-	} else if err != nil {
-		return err
-	} else {
-		fmt.Printf("%s = %s\n", key, s)
-	}
-
-	return nil
+	return storages, nil
 }
 
+func GetStorage(key uint, conn redis.Conn) (Storage, error) {
 
-func GetStorage(key uint) (Storage, error) {
 	return Storage{}, errors.New("Not implemented")
 }
 
-func GetFile(hash string) (File, error) {
+func GetFile(hash string, conn redis.Conn) (File, error) {
 	return File{}, errors.New("Not implemented")
 }
 
 //should throw error if there is already a value cause redis overwrite set
-func (storage Storage) Create() error {
+func (storage Storage) Create(redis.Conn) error {
 	return errors.New("Not implemented")
 }
 
-func (file File) Create() error {
+func (file File) Create(redis.Conn) error {
 	return errors.New("Not implemented")
 }
 
-func (storage Storage) Save() error {
+func (storage Storage) Save(redis.Conn) error {
 	return errors.New("Not implemented")
 }
 
-func (file File) Save() error {
+func (file File) Save(redis.Conn) error {
 	return errors.New("Not implemented")
 }
 
-func (file File) Update() error {
+func (file File) Update(redis.Conn) error {
 	return errors.New("Not implemented")
 }
 
-func (storage Storage) Update() error {
+func (storage Storage) Update(redis.Conn) error {
 	return errors.New("Not implemented")
 }
 
-func (file File) Delete() error {
+func (file File) Delete(redis.Conn) error {
 	return errors.New("Not implemented")
 }
 
-func (storage Storage) Delete() error {
+func (storage Storage) Delete(redis.Conn) error {
 	return errors.New("Not implemented")
 }

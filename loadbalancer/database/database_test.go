@@ -55,7 +55,7 @@ func TestCreateStorage(t *testing.T) {
 
 	key := uint(1)
 	storage := getGoodStorage(key)
-	err := storage.Create()
+	err := storage.Create(conn)
 	check(err, t)
 
 	s, err := redis.String(conn.Do("GET", StoragePrefix + string(key)))
@@ -75,14 +75,15 @@ func (file File) preCreate(c redis.Conn) uint {
 	key := uint(1)
 	storage := getGoodStorage(key)
 	storage.DNS = file.DNS
-	storage.Create()
+	storage.Create(c)
 	return key
 }
 
 func getGoodFile(key string) File {
 	file := File{
-		Salt: key,
+		Hash: key,
 		DNS: "dns",
+		Size: 3,
 	}
 	return file
 }
@@ -96,7 +97,7 @@ func TestCreateFile(t *testing.T) {
 	key := "file"
 	file := getGoodFile(key)
 	file.preCreate(conn)
-	err := file.Create()
+	err := file.Create(conn)
 	check(err, t)
 	s, err := redis.String(conn.Do("GET", FilePrefix + key))
 	if err == redis.ErrNil {
@@ -118,9 +119,9 @@ func TestGetStorage(t *testing.T) {
 	defer conn.Close()
 	key := uint(1)
 	storage := getGoodStorage(key)
-	err := storage.Create()
+	err := storage.Create(conn)
 	check(err, t)
-	dbStorage, err := GetStorage(key)
+	dbStorage, err := GetStorage(key, nil)
 	check(err, t)
 	if dbStorage != storage {
 		t.Errorf("Storage retrieved is not the same %v\n", dbStorage)
@@ -135,9 +136,9 @@ func TestGetFile(t *testing.T) {
 	key := "salt"
 	file := getGoodFile(key)
 	file.preCreate(conn)
-	err := file.Create()
+	err := file.Create(conn)
 	check(err, t)
-	dbFile, err := GetFile(key)
+	dbFile, err := GetFile(key, nil)
 	check(err, t)
 	if dbFile != file {
 		t.Errorf("File retrieved is not the same %v\n", dbFile)
@@ -151,13 +152,13 @@ func TestUpdateStorage(t *testing.T) {
 	// Create storage
 	key := uint(1)
 	storage := getGoodStorage(key)
-	err := storage.Create()
+	err := storage.Create(conn)
 	check(err, t)
 	// Change dns name
 	storage.DNS ="new_dns"
-	err = storage.Update()
+	err = storage.Update(conn)
 	check(err, t)
-	dbStorage, err := GetStorage(key)
+	dbStorage, err := GetStorage(key, nil)
 	check(err, t)
 	// check it's indeed the good value
 	if dbStorage != storage {
@@ -174,17 +175,17 @@ func TestUpdateFile(t *testing.T) {
 
 	file := getGoodFile(key)
 	storageKey := file.preCreate(conn)
-	err := file.Create()
+	err := file.Create(conn)
 	check(err, t)
 	file.DNS ="new_dns"
 	// We need to update the database in order to save the file
-	storage,err := GetStorage(storageKey)
+	storage,err := GetStorage(storageKey, nil)
 	check(err, t)
 	storage.DNS = "new_dns"
-	storage.Update()
-	err = file.Update()
+	storage.Update(conn)
+	err = file.Update(conn)
 	check(err, t)
-	dbFile, err := GetFile(key)
+	dbFile, err := GetFile(key, nil)
 	check(err, t)
 	if dbFile != file {
 		t.Errorf("File retrieved is not the same %v\n", dbFile)
@@ -200,10 +201,10 @@ func TestCreateAlreadyExistingFile(t *testing.T) {
 	
 	file := getGoodFile(key)
 	file.preCreate(conn)
-	err := file.Create()
+	err := file.Create(conn)
 	check(err, t)
 
-	err = file.Create()
+	err = file.Create(conn)
 	if err == nil {
 		t.Errorf("Should be an error, the file already exists")
 	}
@@ -217,23 +218,13 @@ func TestCreateAlreadyExistingStorage(t *testing.T) {
 
 	key := uint(1)
 	storage := getGoodStorage(key)
-	err := storage.Create()
+	err := storage.Create(conn)
 	check(err, t)
 
-	err = storage.Create()
+	err = storage.Create(conn)
 	if err == nil {
 		t.Errorf("Should be an error, the storage already exists")
 	}
-}
-
-func TestUpdateNonExistentFile(t *testing.T) {
-	log.Println("Not yet implemented")
-
-}
-
-func TestSaveFileWithoutStorage(t *testing.T) {
-	log.Println("Not yet implemented")
-
 }
 
 func TestSaveFileWithMalformDNS(t *testing.T) {
@@ -245,39 +236,97 @@ func TestSaveFileWithMalformDNS(t *testing.T) {
 	key := "salt"
 	file := getGoodFile(key)
 	file.preCreate(conn)
-	err := file.Save()
+	file.Hash = "bouh"
+	err := file.Save(conn)
 	check(err, t)
 
-	err = file.Create()
+	err = file.Create(conn)
 	if err == nil {
 		t.Errorf("Should be an error, the file already exists")
 	}
 }
 
 func TestSaveMalformFile(t *testing.T) {
-	log.Println("Not yet implemented")
+		// Initiate connection
+	pool := newPool()
+	conn := pool.Get()
+	defer conn.Close()
 
+	f1 := File {
+		Hash: "nul",
+		DNS: "dns",
+	}
+	f2 := File {
+		Size: 1,
+		DNS: "dns",
+	}
+	f3 := File {
+		Hash: "nul",
+		Size: 1,
+	}
+	err := f1.Save(conn)
+	if err == nil {
+		t.Errorf("No size, file should not be able to be saved")
+	}
+	err = f2.Save(conn)
+	if err == nil {
+		t.Errorf("No hash here")
+	}
+	err = f3.Save(conn)
+	if err == nil {
+		t.Errorf("No dns here")
+	}
+	
 }
 
 func TestSaveMalformStorage(t *testing.T) {
+	pool := newPool()
+	conn := pool.Get()
+	defer conn.Close()
+
+	s1 := Storage {
+		ID	:1,
+		DNS   :"dns",
+		Used  :11,
+		Total :10,
+	}
+	err := s1.Save(conn)
+
+	if err == nil {
+		t.Errorf("More used space than total space")
+	}
+
+	s2 := Storage {
+		ID	:1,
+		Used  :1,
+		Total :10,
+	}
+	err = s2.Save(conn)
+
+	if err == nil {
+		t.Errorf("No DNS")
+	}
+
+	s3 := Storage {
+		ID	:1,
+		DNS   :"dns",
+		Total :10,
+	}
+	err = s3.Save(conn)
+	if err == nil {
+		t.Errorf("No Used space")
+	}
+
+	s4 := Storage {
+		ID	:1,
+		DNS   :"dns",
+		Used: 1,
+		Total :10,
+	}
+	err = s4.Save(conn)
+	if err == nil {
+		t.Errorf("No Used space")
+	}
+
 	log.Println("Not yet implemented")
-}
-
-//@Not necessary at the moment
-func TestChangeLocationOfFile(t *testing.T) {
-	log.Println("Not yet implemented")
-}
-
-//get the location of the file
-func TestWhereIs(t *testing.T) {
-}
-
-//Get the best Storage for file
-func TestWhereTo(t *testing.T) {
-}
-
-func TestSave(t *testing.T) {
-}
-
-func TestDelete(t *testing.T) {
 }
