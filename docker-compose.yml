@@ -38,11 +38,13 @@ services:
   storage:
     build:
       context: ./storage
-    environment:
-      - TCP_PORT=2701
-      - NODE_NAME=EchoNode
+    entrypoint: CompileDaemon -log-prefix=false -build="go install ./..." -command="/go/bin/storage"
+    volumes:
+      - ./storage:/go/src/storage/
     ports:
-      - '2701:2701'
+      - 8082:8082
+    env_file:
+      - ./storage/.env
     networks:
       - storenet
 

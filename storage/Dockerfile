@@ -1,2 +1,9 @@
-FROM cjimti/go-echo
-EXPOSE 2701
+FROM golang:1.12
+
+WORKDIR /go/src/storage/
+COPY . .
+
+ENV GO111MODULE on
+
+#For HotReloading
+RUN ["go", "get", "github.com/githubnemo/CompileDaemon"]
