@@ -1,6 +1,7 @@
 package database
 
 import (
+	"strconv"
 	"testing"
 	"encoding/json"
 	"log"
@@ -58,8 +59,9 @@ func TestCreateStorage(t *testing.T) {
 	storage := getGoodStorage(key)
 	err := storage.Create(conn)
 	check(err, t)
+	sKey := strconv.Itoa(int(key))
 
-	s, err := redis.String(conn.Do("GET", StoragePrefix + string(key)))
+	s, err := redis.String(conn.Do("GET", StoragePrefix + sKey))
 	if err == redis.ErrNil {
 		t.Errorf("Storage doesn't exists\n")
 	} else if err != nil {
@@ -250,12 +252,12 @@ func TestSaveFileWithMalformDNS(t *testing.T) {
 	file := getGoodFile(key)
 	file.preCreate(conn)
 	file.Hash = "bouh"
-	err := file.Save(conn)
+	err := file.Create(conn)
 	check(err, t)
 
-	err = file.Create(conn)
+	err = file.Update(conn)
 	if err == nil {
-		t.Errorf("Should be an error, the file already exists")
+		t.Errorf("The dns doesn't exist")
 	}
 }
 

@@ -123,7 +123,7 @@ func (storage Storage) Create(conn redis.Conn) error {
 		err = storage.Save(conn)
 		return err
 	}
-	return err
+	return fmt.Errorf("Storage already Exist\n")
 }
 
 func (file File) Create(conn redis.Conn) error {
@@ -132,7 +132,26 @@ func (file File) Create(conn redis.Conn) error {
 		err = file.Save(conn)
 		return err
 	}
-	return err
+	return fmt.Errorf("File already Exist\n")
+}
+
+func (file File) check(conn redis.Conn) error {
+	if file.Hash != "" &&
+		file.DNS != "" &&
+		file.Size != 0 {
+		return nil
+	}
+	return fmt.Errorf("Malform filed\n")
+}
+
+func (storage Storage) check() error {
+	if storage.DNS != "" &&
+		storage.ID != 0 &&
+		storage.Total != 0 &&
+		storage.Used != 0 {
+		return nil
+	}
+	return fmt.Errorf("Malform filed\n")
 }
 
 func (storage Storage) Save(conn redis.Conn) error {
@@ -149,6 +168,10 @@ func (storage Storage) Save(conn redis.Conn) error {
 }
 
 func (file File) Save(conn redis.Conn) error {
+	err := file.check(conn)
+	if err != nil {
+		return err
+	}
 	json, err := json.Marshal(file)
 	if err != nil {
 		return err
