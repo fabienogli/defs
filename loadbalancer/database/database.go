@@ -11,21 +11,21 @@ import (
 )
 
 const (
-	FilePrefix = "file:"
+	FilePrefix    = "file:"
 	StoragePrefix = "storage:"
 )
 
 type File struct {
 	Hash string `json:"hash"`
-	DNS  string `json:"dns"`
-	Size uint `json:"size"`
+	DNS  uint   `json:"dns"`
+	Size uint   `json:"size"`
 }
 
 type Storage struct {
-	ID		uint  `json:"id"`
+	ID    uint   `json:"id"`
 	DNS   string `json:"dns"`
-	Used  uint `json:"used"`
-	Total uint `json:"total"`
+	Used  uint   `json:"used"`
+	Total uint   `json:"total"`
 }
 
 type Cud interface {
@@ -72,7 +72,7 @@ func getKeys(pattern string, conn redis.Conn) ([]string, error) {
 func GetStorages(conn redis.Conn) ([]Storage, error) {
 	keys, err := getKeys(StoragePrefix, conn)
 	if err != nil {
-		return []Storage{}, err	
+		return []Storage{}, err
 	}
 	storages := make([]Storage, len(keys))
 	for index, key := range keys {
@@ -87,7 +87,7 @@ func GetStorages(conn redis.Conn) ([]Storage, error) {
 
 func GetStorage(key uint, conn redis.Conn) (Storage, error) {
 	sKey := strconv.Itoa(int(key))
-	s, err := redis.String(conn.Do("GET", StoragePrefix + mediate(sKey )))
+	s, err := redis.String(conn.Do("GET", StoragePrefix+mediate(sKey)))
 	if err == redis.ErrNil {
 		return Storage{}, err
 	} else if err != nil {
@@ -102,7 +102,7 @@ func GetStorage(key uint, conn redis.Conn) (Storage, error) {
 }
 
 func GetFile(hash string, conn redis.Conn) (File, error) {
-	s, err := redis.String(conn.Do("GET", FilePrefix + mediate(hash)))
+	s, err := redis.String(conn.Do("GET", FilePrefix+mediate(hash)))
 	if err == redis.ErrNil {
 		return File{}, err
 	} else if err != nil {
@@ -137,11 +137,12 @@ func (file File) Create(conn redis.Conn) error {
 
 func (file File) check(conn redis.Conn) error {
 	if file.Hash != "" &&
-		file.DNS != "" &&
+		file.DNS != 0 &&
 		file.Size != 0 {
-		return nil
+		_, err := GetStorage(file.DNS, conn)
+		return err
 	}
-	return fmt.Errorf("Malform filed\n")
+	return fmt.Errorf("Malform filed %v\n", file)
 }
 
 func (storage Storage) check() error {
@@ -160,7 +161,7 @@ func (storage Storage) Save(conn redis.Conn) error {
 		return err
 	}
 	sKey := strconv.Itoa(int(storage.ID))
-	_, err = conn.Do("SET", StoragePrefix + mediate(sKey), json)
+	_, err = conn.Do("SET", StoragePrefix+mediate(sKey), json)
 	if err != nil {
 		return err
 	}
@@ -176,7 +177,7 @@ func (file File) Save(conn redis.Conn) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.Do("SET", FilePrefix + mediate(file.Hash), json)
+	_, err = conn.Do("SET", FilePrefix+mediate(file.Hash), json)
 	if err != nil {
 		return err
 	}

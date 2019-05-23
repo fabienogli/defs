@@ -69,26 +69,25 @@ func TestCreateStorage(t *testing.T) {
 	}
 	dbStorage := Storage{}
 	err = json.Unmarshal([]byte(s), &dbStorage)
-	if (dbStorage != storage) {
+	if dbStorage != storage {
 		t.Errorf("Storage from db is not the same %v", dbStorage)
 	}
 }
 
 func (file File) preCreate(c redis.Conn) uint {
-	key := uint(1)
-	storage := getGoodStorage(key)
-	storage.DNS = file.DNS
+	storage := getGoodStorage(file.DNS)
+	storage.DNS = "lol"
 	err := storage.Create(c)
 	if err != nil {
 		log.Printf("Error in precreate %v\n", err)
 	}
-	return key
+	return file.DNS
 }
 
 func getGoodFile(key string) File {
 	file := File{
 		Hash: key,
-		DNS: "dns",
+		DNS: 1,
 		Size: 3,
 	}
 	return file
@@ -108,14 +107,14 @@ func TestCreateFile(t *testing.T) {
 	check(err, t)
 	s, err := redis.String(conn.Do("GET", FilePrefix + key))
 	if err == redis.ErrNil {
-		t.Errorf("Storage doesn't exists\n")
+		t.Errorf("File doesn't exists\n")
 	} else if err != nil {
 		t.Errorf("There was an error %v\n", err)
 	}
 	dbFile := File{}
 	err = json.Unmarshal([]byte(s), &dbFile)
 	if (dbFile != file) {
-		t.Errorf("Storage from db is not the same %v", dbFile)
+		t.Errorf("File from db is not the same %v", dbFile)
 	}
 }
 
@@ -189,12 +188,12 @@ func TestUpdateFile(t *testing.T) {
 	storageKey := file.preCreate(conn)
 	err := file.Create(conn)
 	check(err, t)
-	file.DNS ="new_dns"
+	file.DNS = 2
 	// We need to update the database in order to save the file
 	storage,err := GetStorage(storageKey, conn)
 	check(err, t)
-	storage.DNS = "new_dns"
-	storage.Update(conn)
+	storage.ID = 2
+	storage.Create(conn)
 	err = file.Update(conn)
 	check(err, t)
 	dbFile, err := GetFile(key, conn)
@@ -251,10 +250,9 @@ func TestSaveFileWithMalformDNS(t *testing.T) {
 	key := "salt"
 	file := getGoodFile(key)
 	file.preCreate(conn)
-	file.Hash = "bouh"
 	err := file.Create(conn)
 	check(err, t)
-
+	file.DNS = 3
 	err = file.Update(conn)
 	if err == nil {
 		t.Errorf("The dns doesn't exist")
@@ -270,11 +268,11 @@ func TestSaveMalformFile(t *testing.T) {
 
 	f1 := File {
 		Hash: "nul",
-		DNS: "dns",
+		DNS: 0,
 	}
 	f2 := File {
 		Size: 1,
-		DNS: "dns",
+		DNS: 0,
 	}
 	f3 := File {
 		Hash: "nul",
