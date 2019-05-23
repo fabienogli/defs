@@ -6,6 +6,9 @@ services:
 stages:
   - test
 
+before_script:
+  - go run utils/main.go
+
 format:
   stage: test
   variables:
@@ -16,5 +19,3 @@ format:
     - docker-compose exec -T loadbalancer go test ./...
     - docker-compose exec -T supervisor go test ./...
     - docker-compose down -v
-  only:
-    - develop
