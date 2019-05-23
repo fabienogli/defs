@@ -10,7 +10,7 @@ before_script:
   - apk add go 
   - go run utils/main.go
 
-format:
+run tests and build app:
   stage: test
   script:
     - docker-compose build
