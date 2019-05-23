@@ -118,6 +118,23 @@ func TestCreateFile(t *testing.T) {
 	}
 }
 
+func TestCreateBigFile(t *testing.T) {
+	// Initiate connection
+	pool := newPool()
+	conn := pool.Get()
+	defer conn.Close()
+	defer conn.Do("FLUSHALL")
+
+	key := "file"
+	file := getGoodFile(key)
+	file.preCreate(conn)
+	file.Size =100
+	err := file.Create(conn)
+	if err == nil {
+		t.Errorf("Should be an error, file too big")
+	}
+}
+
 func TestGetStorage(t *testing.T) {
 	// Initiate connection
 	pool := newPool()
@@ -215,7 +232,6 @@ func TestCreateAlreadyExistingFile(t *testing.T) {
 	file.preCreate(conn)
 	err := file.Create(conn)
 	check(err, t)
-
 	err = file.Create(conn)
 	if err == nil {
 		t.Errorf("Should be an error, the file already exists, error %v\n", err)
@@ -310,38 +326,4 @@ func TestSaveMalformStorage(t *testing.T) {
 	if err == nil {
 		t.Errorf("More used space than total space")
 	}
-
-	s2 := Storage {
-		ID	:1,
-		Used  :1,
-		Total :10,
-	}
-	err = s2.Save(conn)
-
-	if err == nil {
-		t.Errorf("No DNS")
-	}
-
-	s3 := Storage {
-		ID	:1,
-		DNS   :"dns",
-		Total :10,
-	}
-	err = s3.Save(conn)
-	if err == nil {
-		t.Errorf("No Used space")
-	}
-
-	s4 := Storage {
-		ID	:1,
-		DNS   :"dns",
-		Used: 1,
-		Total :10,
-	}
-	err = s4.Save(conn)
-	if err == nil {
-		t.Errorf("No Used space")
-	}
-
-	log.Println("Not yet implemented")
 }

@@ -120,8 +120,7 @@ func GetFile(hash string, conn redis.Conn) (File, error) {
 func (storage Storage) Create(conn redis.Conn) error {
 	_, err := GetStorage(storage.ID, conn)
 	if err == redis.ErrNil {
-		err = storage.Save(conn)
-		return err
+		return storage.Save(conn)
 	}
 	return fmt.Errorf("Storage already Exist\n")
 }
@@ -129,8 +128,7 @@ func (storage Storage) Create(conn redis.Conn) error {
 func (file File) Create(conn redis.Conn) error {
 	_, err := GetFile(file.Hash, conn)
 	if err == redis.ErrNil {
-		err = file.Save(conn)
-		return err
+		return file.Save(conn)
 	}
 	return fmt.Errorf("File already Exist\n")
 }
@@ -139,23 +137,35 @@ func (file File) check(conn redis.Conn) error {
 	if file.Hash != "" &&
 		file.DNS != 0 &&
 		file.Size != 0 {
-		_, err := GetStorage(file.DNS, conn)
-		return err
-	}
+		return nil
+		}
 	return fmt.Errorf("Malform filed %v\n", file)
+}
+
+func (file File) updateStorage(conn redis.Conn) error {
+	storage, err := GetStorage(file.DNS, conn)
+	if err == nil {
+		storage.Used += file.Size
+		return storage.Update(conn)
+	}
+	return err
 }
 
 func (storage Storage) check() error {
 	if storage.DNS != "" &&
 		storage.ID != 0 &&
 		storage.Total != 0 &&
-		storage.Used != 0 {
+		storage.Used < storage.Total {
 		return nil
 	}
-	return fmt.Errorf("Malform filed\n")
+	return fmt.Errorf("Malform storage\n")
 }
 
 func (storage Storage) Save(conn redis.Conn) error {
+	err := storage.check()
+	if err != nil {
+		return err
+	}
 	json, err := json.Marshal(storage)
 	if err != nil {
 		return err
@@ -173,6 +183,10 @@ func (file File) Save(conn redis.Conn) error {
 	if err != nil {
 		return err
 	}
+	err = file.updateStorage(conn)
+	if err != nil {
+		return err
+	}
 	json, err := json.Marshal(file)
 	if err != nil {
 		return err
@@ -182,7 +196,6 @@ func (file File) Save(conn redis.Conn) error {
 		return err
 	}
 	return nil
-	return errors.New("Not implemented")
 }
 
 func mediate(lama string) string {
