@@ -1,6 +1,7 @@
 package database
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -12,20 +13,19 @@ import (
 const (
 	FilePrefix = "file:"
 	StoragePrefix = "storage:"
-
 )
 
 type File struct {
-	Hash string
-	DNS  string
-	Size uint
+	Hash string `json:"hash"`
+	DNS  string `json:"dns"`
+	Size uint `json:"size"`
 }
 
 type Storage struct {
-	ID		uint
-	DNS   string
-	Used  uint
-	Total uint
+	ID		uint  `json:"id"`
+	DNS   string `json:"dns"`
+	Used  uint `json:"used"`
+	Total uint `json:"total"`
 }
 
 type Cud interface {
@@ -86,40 +86,103 @@ func GetStorages(conn redis.Conn) ([]Storage, error) {
 }
 
 func GetStorage(key uint, conn redis.Conn) (Storage, error) {
-
-	return Storage{}, errors.New("Not implemented")
+	sKey := strconv.Itoa(int(key))
+	s, err := redis.String(conn.Do("GET", StoragePrefix + mediate(sKey )))
+	if err == redis.ErrNil {
+		return Storage{}, err
+	} else if err != nil {
+		return Storage{}, err
+	}
+	storage := Storage{}
+	err = json.Unmarshal([]byte(s), &storage)
+	if err != nil {
+		return Storage{}, err
+	}
+	return storage, nil
 }
 
 func GetFile(hash string, conn redis.Conn) (File, error) {
-	return File{}, errors.New("Not implemented")
+	s, err := redis.String(conn.Do("GET", FilePrefix + mediate(hash)))
+	if err == redis.ErrNil {
+		return File{}, err
+	} else if err != nil {
+		return File{}, err
+	}
+	file := File{}
+	err = json.Unmarshal([]byte(s), &file)
+	if err != nil {
+		return File{}, err
+	}
+	return file, nil
 }
 
 //should throw error if there is already a value cause redis overwrite set
-func (storage Storage) Create(redis.Conn) error {
+func (storage Storage) Create(conn redis.Conn) error {
+	_, err := GetStorage(storage.ID, conn)
+	if err == redis.ErrNil {
+		err = storage.Save(conn)
+		return err
+	}
+	return err
+}
+
+func (file File) Create(conn redis.Conn) error {
+	_, err := GetFile(file.Hash, conn)
+	if err == redis.ErrNil {
+		err = file.Save(conn)
+		return err
+	}
+	return err
+}
+
+func (storage Storage) Save(conn redis.Conn) error {
+	json, err := json.Marshal(storage)
+	if err != nil {
+		return err
+	}
+	sKey := strconv.Itoa(int(storage.ID))
+	_, err = conn.Do("SET", StoragePrefix + mediate(sKey), json)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (file File) Save(conn redis.Conn) error {
+	json, err := json.Marshal(file)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Do("SET", FilePrefix + mediate(file.Hash), json)
+	if err != nil {
+		return err
+	}
+	return nil
 	return errors.New("Not implemented")
 }
 
-func (file File) Create(redis.Conn) error {
-	return errors.New("Not implemented")
+func mediate(lama string) string {
+	return strings.Replace(lama, " ", "", -1)
 }
 
-func (storage Storage) Save(redis.Conn) error {
-	return errors.New("Not implemented")
+func (file File) Update(conn redis.Conn) error {
+	_, err := GetFile(file.Hash, conn)
+	if err == nil {
+		return file.Save(conn)
+	}
+	return err
 }
 
-func (file File) Save(redis.Conn) error {
-	return errors.New("Not implemented")
-}
-
-func (file File) Update(redis.Conn) error {
-	return errors.New("Not implemented")
-}
-
-func (storage Storage) Update(redis.Conn) error {
-	return errors.New("Not implemented")
+func (storage Storage) Update(conn redis.Conn) error {
+	_, err := GetStorage(storage.ID, conn)
+	if err == nil {
+		return storage.Save(conn)
+	}
+	return err
 }
 
 func (file File) Delete(redis.Conn) error {
+
 	return errors.New("Not implemented")
 }
 

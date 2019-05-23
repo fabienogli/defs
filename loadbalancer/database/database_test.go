@@ -52,6 +52,7 @@ func TestCreateStorage(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 
 	key := uint(1)
 	storage := getGoodStorage(key)
@@ -75,7 +76,10 @@ func (file File) preCreate(c redis.Conn) uint {
 	key := uint(1)
 	storage := getGoodStorage(key)
 	storage.DNS = file.DNS
-	storage.Create(c)
+	err := storage.Create(c)
+	if err != nil {
+		log.Printf("Error in precreate %v\n", err)
+	}
 	return key
 }
 
@@ -93,6 +97,7 @@ func TestCreateFile(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 
 	key := "file"
 	file := getGoodFile(key)
@@ -117,11 +122,13 @@ func TestGetStorage(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
+
 	key := uint(1)
 	storage := getGoodStorage(key)
 	err := storage.Create(conn)
 	check(err, t)
-	dbStorage, err := GetStorage(key, nil)
+	dbStorage, err := GetStorage(key, conn)
 	check(err, t)
 	if dbStorage != storage {
 		t.Errorf("Storage retrieved is not the same %v\n", dbStorage)
@@ -133,12 +140,13 @@ func TestGetFile(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 	key := "salt"
 	file := getGoodFile(key)
 	file.preCreate(conn)
 	err := file.Create(conn)
 	check(err, t)
-	dbFile, err := GetFile(key, nil)
+	dbFile, err := GetFile(key, conn)
 	check(err, t)
 	if dbFile != file {
 		t.Errorf("File retrieved is not the same %v\n", dbFile)
@@ -149,6 +157,7 @@ func TestUpdateStorage(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 	// Create storage
 	key := uint(1)
 	storage := getGoodStorage(key)
@@ -158,11 +167,11 @@ func TestUpdateStorage(t *testing.T) {
 	storage.DNS ="new_dns"
 	err = storage.Update(conn)
 	check(err, t)
-	dbStorage, err := GetStorage(key, nil)
+	dbStorage, err := GetStorage(key, conn)
 	check(err, t)
 	// check it's indeed the good value
 	if dbStorage != storage {
-		t.Errorf("File retrieved is not the same %v\n", dbStorage)
+		t.Errorf("Storage retrieved is not the same %v\n", dbStorage)
 	}
 }
 
@@ -171,6 +180,7 @@ func TestUpdateFile(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 	key := "salt"
 
 	file := getGoodFile(key)
@@ -179,13 +189,13 @@ func TestUpdateFile(t *testing.T) {
 	check(err, t)
 	file.DNS ="new_dns"
 	// We need to update the database in order to save the file
-	storage,err := GetStorage(storageKey, nil)
+	storage,err := GetStorage(storageKey, conn)
 	check(err, t)
 	storage.DNS = "new_dns"
 	storage.Update(conn)
 	err = file.Update(conn)
 	check(err, t)
-	dbFile, err := GetFile(key, nil)
+	dbFile, err := GetFile(key, conn)
 	check(err, t)
 	if dbFile != file {
 		t.Errorf("File retrieved is not the same %v\n", dbFile)
@@ -197,6 +207,7 @@ func TestCreateAlreadyExistingFile(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 	key := "salt"
 	
 	file := getGoodFile(key)
@@ -206,7 +217,7 @@ func TestCreateAlreadyExistingFile(t *testing.T) {
 
 	err = file.Create(conn)
 	if err == nil {
-		t.Errorf("Should be an error, the file already exists")
+		t.Errorf("Should be an error, the file already exists, error %v\n", err)
 	}
 }
 
@@ -215,6 +226,7 @@ func TestCreateAlreadyExistingStorage(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 
 	key := uint(1)
 	storage := getGoodStorage(key)
@@ -232,6 +244,7 @@ func TestSaveFileWithMalformDNS(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 
 	key := "salt"
 	file := getGoodFile(key)
@@ -251,6 +264,7 @@ func TestSaveMalformFile(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 
 	f1 := File {
 		Hash: "nul",
@@ -283,6 +297,7 @@ func TestSaveMalformStorage(t *testing.T) {
 	pool := newPool()
 	conn := pool.Get()
 	defer conn.Close()
+	defer conn.Do("FLUSHALL")
 
 	s1 := Storage {
 		ID	:1,
