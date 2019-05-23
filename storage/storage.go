@@ -11,6 +11,7 @@ import (
 	u "storage/utils"
 )
 
+<<<<<<< HEAD
 func getAbsDirectory() string {
 	// TODO irindul 2019-05-22 : Fetch from ENV/DB for base folder
 	// Add this to a volume in docker-compose for persitence ;)
@@ -85,6 +86,12 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 
 
 	tmpFile, err := os.Create(path)
+=======
+func main() {
+	fmt.Println("Starting http file sever")
+	http.HandleFunc("/download/", Download)
+	err := http.ListenAndServe(":8080", nil)
+>>>>>>> can download now, need to test in docker
 	if err != nil {
 		// TODO irindul 2019-05-22 : Maybe handle with something else rather than http 500 (allowing the client to debug)
 		u.RespondWithError(w, http.StatusInternalServerError, err)
@@ -133,11 +140,12 @@ func Download(writer http.ResponseWriter, request *http.Request) {
 	fmt.Println("Client requests: " + Filename)
 
 	//Check if file exists and open
-	Openfile, err := os.Open(Filename)
+	Openfile, err := os.Open("./" + Filename)
 	defer Openfile.Close() //Close after function return
 	if err != nil {
 		//File not found, send 404
 		http.Error(writer, "File not found.", 404)
+		log.Printf("ERror: %v", err)
 		return
 	}
 
