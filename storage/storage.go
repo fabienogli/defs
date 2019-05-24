@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"log"
@@ -10,8 +9,8 @@ import (
 	"strconv"
 	u "storage/utils"
 )
+var downloadDir string
 
-<<<<<<< HEAD
 func getAbsDirectory() string {
 	// TODO irindul 2019-05-22 : Fetch from ENV/DB for base folder
 	// Add this to a volume in docker-compose for persitence ;)
@@ -86,37 +85,6 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 
 
 	tmpFile, err := os.Create(path)
-=======
-func main() {
-	fmt.Println("Starting http file sever")
-	http.HandleFunc("/download/", Download)
-	err := http.ListenAndServe(":8080", nil)
->>>>>>> can download now, need to test in docker
-	if err != nil {
-		// TODO irindul 2019-05-22 : Maybe handle with something else rather than http 500 (allowing the client to debug)
-		u.RespondWithError(w, http.StatusInternalServerError, err)
-		return
-	}
-	log.Println("created file in ", path)
-	defer tmpFile.Close()
-
-
-	buf := bufio.NewReader(p)
-	//Prevent from reading too much
-	lmt := io.MultiReader(buf, io.LimitReader(p, maxSizeInByte))
-	written, err := io.Copy(tmpFile, lmt)
-
-	if err != nil && err != io.EOF {
-		u.RespondWithError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	//Somehow the file was bigger than expected
-	if written > maxSizeInByte {
-		os.Remove(tmpFile.Name())
-		u.RespondWithMsg(w, http.StatusUnprocessableEntity, "file size over limit")
-		return
-	}
 }
 
 func main() {
@@ -130,6 +98,18 @@ func main() {
 }
 
 func Download(writer http.ResponseWriter, request *http.Request) {
+	downloadDir = os.Getenv("DOWNLOAD_DIR")
+	if downloadDir == "" {
+		downloadDir = "./drive/"
+	}
+
+	if _, err := os.Stat(downloadDir); os.IsNotExist(err) {
+		err = os.MkdirAll(downloadDir, 0600)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	//First of check if Get is set in the URL
 	Filename := request.URL.Query().Get("file")
 	if Filename == "" {
@@ -140,8 +120,8 @@ func Download(writer http.ResponseWriter, request *http.Request) {
 	fmt.Println("Client requests: " + Filename)
 
 	//Check if file exists and open
-	Openfile, err := os.Open("./" + Filename)
-	defer Openfile.Close() //Close after function return
+	openfile, err := os.Open(downloadDir + Filename)
+	defer openfile.Close() //Close after function return
 	if err != nil {
 		//File not found, send 404
 		http.Error(writer, "File not found.", 404)
@@ -155,12 +135,12 @@ func Download(writer http.ResponseWriter, request *http.Request) {
 	//Create a buffer to store the header of the file in
 	FileHeader := make([]byte, 512)
 	//Copy the headers into the FileHeader buffer
-	Openfile.Read(FileHeader)
+	_, _ = openfile.Read(FileHeader)
 	//Get content type of file
 	FileContentType := http.DetectContentType(FileHeader)
 
 	//Get the file size
-	FileStat, _ := Openfile.Stat()                     //Get info from file
+	FileStat, _ := openfile.Stat()                     //Get info from file
 	FileSize := strconv.FormatInt(FileStat.Size(), 10) //Get file size as a string
 
 	//Send the headers
@@ -170,7 +150,7 @@ func Download(writer http.ResponseWriter, request *http.Request) {
 
 	//Send the file
 	//We read 512 bytes from the file already, so we reset the offset back to 0
-	Openfile.Seek(0, 0)
-	io.Copy(writer, Openfile) //'Copy' the file to the client
+	_, _ = openfile.Seek(0, 0)
+	_, _ = io.Copy(writer, openfile) //'Copy' the file to the client
 	return
 }
