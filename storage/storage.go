@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	u "storage/utils"
+	"strings"
 )
 var downloadDir string
 
@@ -111,16 +112,16 @@ func Download(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	//First of check if Get is set in the URL
-	Filename := request.URL.Query().Get("file")
-	if Filename == "" {
+	file := request.URL.Query().Get("file")
+	if file == "" {
 		//Get not set, send a 400 bad request
 		http.Error(writer, "Get 'file' not specified in url.", 400)
 		return
 	}
-	fmt.Println("Client requests: " + Filename)
-
+	fmt.Println("Client requests: " + file)
+	file = strings.Replace(file, "/", "", -1)
 	//Check if file exists and open
-	openfile, err := os.Open(downloadDir + Filename)
+	openfile, err := os.Open(downloadDir + file)
 	defer openfile.Close() //Close after function return
 	if err != nil {
 		//File not found, send 404
@@ -144,13 +145,16 @@ func Download(writer http.ResponseWriter, request *http.Request) {
 	FileSize := strconv.FormatInt(FileStat.Size(), 10) //Get file size as a string
 
 	//Send the headers
-	writer.Header().Set("Content-Disposition", "attachment; filename="+Filename)
+	writer.Header().Set("Content-Disposition", "attachment; filename="+file)
 	writer.Header().Set("Content-Type", FileContentType)
 	writer.Header().Set("Content-Length", FileSize)
 
 	//Send the file
 	//We read 512 bytes from the file already, so we reset the offset back to 0
-	_, _ = openfile.Seek(0, 0)
+	_, err= openfile.Seek(0, 0)
+	if err != nil {
+		panic(err)
+	}
 	_, _ = io.Copy(writer, openfile) //'Copy' the file to the client
 	return
 }
