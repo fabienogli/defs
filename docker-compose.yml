@@ -1,7 +1,7 @@
-#todo add network configurations 
+#todo add network configurations
 #Do not expose service that do not require to be exposes (exemple loadbalancer :D)
 
-version: '3.4'
+version: "3.4"
 services:
   supervisor:
     build:
@@ -23,8 +23,8 @@ services:
       - ./loadbalancer:/go/src/loadbalancer/
     ports:
       - 8081:8081
-    environment:
-      port: ${LOADBALANCER_PORT}
+    env_file:
+      - ./loadbalancer/.env
     networks:
       - routingnet
       - loadbalancingnet
@@ -48,7 +48,6 @@ services:
     networks:
       - storenet
 
-
 networks:
   routingnet:
     driver: bridge
@@ -56,6 +55,3 @@ networks:
     driver: bridge
   storenet:
     driver: bridge
-
-
-
