@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	port := os.Getenv("port")
+	port := os.Getenv("LOADBALANCER_PORT")
 	if port == "" {
 		panic("Port wasn't found\n")
 	}

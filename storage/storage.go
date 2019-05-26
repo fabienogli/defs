@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,7 +18,7 @@ func getAbsDirectory() string {
 	// TODO irindul 2019-05-22 : Fetch from ENV/DB for base folder
 	// Add this to a volume in docker-compose for persitence ;)
 
-	path := "/storage/tmp/"
+	path := os.Getenv("STORAGE_DIR")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		os.MkdirAll(path, 0600)
 	}
@@ -29,7 +30,6 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 	limitInMbStr := os.Getenv("STORAGE_LIMIT")
 	limitInMb, _ := strconv.Atoi(limitInMbStr)
 	maxSizeInByte := int64(limitInMb * 1024 * 1024)
-	log.Printf("max size allowed : %d bytes", maxSizeInByte)
 
 	//Limit DoS by setting a limit to the body reading
 	//The 1024 added are for the content of the metadata, may be augmented if fitted but
@@ -37,6 +37,11 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 	limit := maxSizeInByte +  1024
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 
+	parseMultiPartForm(w, r, maxSizeInByte)
+}
+
+
+func parseMultiPartForm(w http.ResponseWriter, r* http.Request, maxSizeInByte int64) {
 	reader, err := r.MultipartReader()
 	if err != nil {
 		u.RespondWithError(w, http.StatusBadRequest, err)
@@ -47,32 +52,20 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 	if err != nil {
 		u.RespondWithError(w, http.StatusInternalServerError, err)
 		return
+
 	}
 
-	if p.FormName() != "hash" {
-		u.RespondWithMsg(w, http.StatusBadRequest, "hash of the file is expected")
+	fileName, err := parseHashToFileName(w, p)
+	if err != nil {
+		log.Println(err.Error())
 		return
 	}
 
-	//Hash is 256-bit long (which is 32 bytes ;) )
-	hashSize := 32 //bytes
-	hash := make([]byte, hashSize)
-	n, err := p.Read(hash)
-	if err != nil  && err != io.EOF {
-		u.RespondWithError(w, http.StatusUnprocessableEntity, err)
-		return
-	}
-	if n != hashSize {
-		u.RespondWithMsg(w, http.StatusUnprocessableEntity, fmt.Sprintf("hash must be %d bit long, was %d", hashSize*8, n))
-		return
-	}
-
-	fileName := string(hash)
 
 	// parse file field
 	p, err = reader.NextPart()
-	if err != nil && err != io.EOF { //Maybe treat EOF (&& err != io.EOF)
- 		u.RespondWithError(w, http.StatusInternalServerError, err)
+	if err != nil && err != io.EOF {
+		u.RespondWithError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -84,21 +77,56 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 	//Creating file on hard drive
 	dir := getAbsDirectory()
 	path := dir + fileName
+	writeFileToDisk(w, path, p, maxSizeInByte)
 
+}
 
+func parseHashToFileName(w http.ResponseWriter, p *multipart.Part) (string, error) {
+	if p.FormName() != "hash" {
+		u.RespondWithMsg(w, http.StatusBadRequest, "hash of the file is expected")
+		return "", fmt.Errorf("hash file not present")
+	}
+
+	//Hash is 256-bit long (which is 32 bytes ;) )
+	hashSize := 32 //bytes
+	hash := make([]byte, hashSize)
+	n, err := p.Read(hash)
+	if err != nil  && err != io.EOF {
+		u.RespondWithError(w, http.StatusUnprocessableEntity, err)
+		return "", err
+	}
+	if n != hashSize {
+		u.RespondWithMsg(w, http.StatusUnprocessableEntity, fmt.Sprintf("hash must be %d bit long, was %d", hashSize*8, n))
+		return "", err
+	}
+
+	replacer := strings.NewReplacer("/", "", ".", "")
+	fileName := string(hash)
+	tmp := replacer.Replace(fileName)
+
+	if len(tmp) != len(fileName) {
+		msg := "hash is not a proper hash"
+		u.RespondWithMsg(w, http.StatusUnprocessableEntity, msg)
+		return "", fmt.Errorf(msg)
+	}
+
+	return fileName, nil
+}
+
+func writeFileToDisk(w http.ResponseWriter, path string, p *multipart.Part, maxSize int64) {
 	tmpFile, err := os.Create(path)
 	if err != nil {
-		// TODO irindul 2019-05-22 : Maybe handle with something else rather than http 500 (allowing the client to debug)
 		u.RespondWithError(w, http.StatusInternalServerError, err)
 		return
 	}
-	log.Println("created file in ", path)
 	defer tmpFile.Close()
+	// TODO irindul 2019-05-26 : handle file already exists (should not occur but just to be sure)
+	log.Println("created file in ", path)
 
 
 	buf := bufio.NewReader(p)
 	//Prevent from reading too much
-	lmt := io.MultiReader(buf, io.LimitReader(p, maxSizeInByte))
+	lmt := io.MultiReader(buf, io.LimitReader(p, maxSize))
 	written, err := io.Copy(tmpFile, lmt)
 
 	if err != nil && err != io.EOF {
@@ -107,7 +135,8 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 	}
 
 	//Somehow the file was bigger than expected
-	if written > maxSizeInByte {
+	if written > maxSize {
+		log.Printf("file was removed : size (%d) too big (limit = %d)",  written, maxSize)
 		os.Remove(tmpFile.Name())
 		u.RespondWithMsg(w, http.StatusUnprocessableEntity, "file size over limit")
 		return
@@ -115,10 +144,7 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 }
 
 func download(writer http.ResponseWriter, request *http.Request) {
-	downloadDir = os.Getenv("DOWNLOAD_DIR")
-	if downloadDir == "" {
-		downloadDir = "./drive/"
-	}
+	downloadDir = os.Getenv("STORAGE_DIR")
 
 	if _, err := os.Stat(downloadDir); os.IsNotExist(err) {
 		err = os.MkdirAll(downloadDir, 0600)
