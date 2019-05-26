@@ -38,6 +38,7 @@ services:
   storage:
     build:
       context: ./storage
+      target: build
     entrypoint: CompileDaemon -log-prefix=false -build="go install ./..." -command="/go/bin/storage"
     volumes:
       - ./storage/:/go/src/storage/
