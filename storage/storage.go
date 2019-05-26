@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"log"
@@ -86,6 +87,31 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 
 
 	tmpFile, err := os.Create(path)
+	if err != nil {
+		// TODO irindul 2019-05-22 : Maybe handle with something else rather than http 500 (allowing the client to debug)
+		u.RespondWithError(w, http.StatusInternalServerError, err)
+		return
+	}
+	log.Println("created file in ", path)
+	defer tmpFile.Close()
+
+
+	buf := bufio.NewReader(p)
+	//Prevent from reading too much
+	lmt := io.MultiReader(buf, io.LimitReader(p, maxSizeInByte))
+	written, err := io.Copy(tmpFile, lmt)
+
+	if err != nil && err != io.EOF {
+		u.RespondWithError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	//Somehow the file was bigger than expected
+	if written > maxSizeInByte {
+		os.Remove(tmpFile.Name())
+		u.RespondWithMsg(w, http.StatusUnprocessableEntity, "file size over limit")
+		return
+	}
 }
 
 func main() {
