@@ -114,17 +114,7 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 	}
 }
 
-func main() {
-	http.HandleFunc("/upload", uploadFile)
-	http.HandleFunc("/download", Download)
-
-	port := os.Getenv("STORAGE_PORT")
-	addr := ":" + port
-	log.Println("Listening on", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
-}
-
-func Download(writer http.ResponseWriter, request *http.Request) {
+func download(writer http.ResponseWriter, request *http.Request) {
 	downloadDir = os.Getenv("DOWNLOAD_DIR")
 	if downloadDir == "" {
 		downloadDir = "./drive/"
@@ -183,4 +173,14 @@ func Download(writer http.ResponseWriter, request *http.Request) {
 	}
 	_, _ = io.Copy(writer, openfile) //'Copy' the file to the client
 	return
+}
+
+func main() {
+	http.HandleFunc("/upload", uploadFile)
+	http.HandleFunc("/download", download)
+
+	port := os.Getenv("STORAGE_PORT")
+	addr := ":" + port
+	log.Println("Listening on", addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
 }
