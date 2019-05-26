@@ -9,7 +9,9 @@ import (
 	"os"
 	"strconv"
 	u "storage/utils"
+	"strings"
 )
+var downloadDir string
 
 func getAbsDirectory() string {
 	// TODO irindul 2019-05-22 : Fetch from ENV/DB for base folder
@@ -112,8 +114,70 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 	}
 }
 
+func download(writer http.ResponseWriter, request *http.Request) {
+	downloadDir = os.Getenv("DOWNLOAD_DIR")
+	if downloadDir == "" {
+		downloadDir = "./drive/"
+	}
+
+	if _, err := os.Stat(downloadDir); os.IsNotExist(err) {
+		err = os.MkdirAll(downloadDir, 0600)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	//First of check if Get is set in the URL
+	file := request.URL.Query().Get("file")
+	if file == "" {
+		//Get not set, send a 400 bad request
+		http.Error(writer, "Get 'file' not specified in url.", 400)
+		return
+	}
+	fmt.Println("Client requests: " + file)
+	file = strings.Replace(file, "/", "", -1)
+	//Check if file exists and open
+	openfile, err := os.Open(downloadDir + file)
+	defer openfile.Close() //Close after function return
+	if err != nil {
+		//File not found, send 404
+		http.Error(writer, "File not found.", 404)
+		log.Printf("ERror: %v", err)
+		return
+	}
+
+	//File is found, create and send the correct headers
+
+	//Get the Content-Type of the file
+	//Create a buffer to store the header of the file in
+	FileHeader := make([]byte, 512)
+	//Copy the headers into the FileHeader buffer
+	_, _ = openfile.Read(FileHeader)
+	//Get content type of file
+	FileContentType := http.DetectContentType(FileHeader)
+
+	//Get the file size
+	FileStat, _ := openfile.Stat()                     //Get info from file
+	FileSize := strconv.FormatInt(FileStat.Size(), 10) //Get file size as a string
+
+	//Send the headers
+	writer.Header().Set("Content-Disposition", "attachment; filename="+file)
+	writer.Header().Set("Content-Type", FileContentType)
+	writer.Header().Set("Content-Length", FileSize)
+
+	//Send the file
+	//We read 512 bytes from the file already, so we reset the offset back to 0
+	_, err= openfile.Seek(0, 0)
+	if err != nil {
+		panic(err)
+	}
+	_, _ = io.Copy(writer, openfile) //'Copy' the file to the client
+	return
+}
+
 func main() {
 	http.HandleFunc("/upload", uploadFile)
+	http.HandleFunc("/download", download)
 
 	port := os.Getenv("STORAGE_PORT")
 	addr := ":" + port

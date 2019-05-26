@@ -40,7 +40,7 @@ services:
       context: ./storage
     entrypoint: CompileDaemon -log-prefix=false -build="go install ./..." -command="/go/bin/storage"
     volumes:
-      - ./storage:/go/src/storage/
+      - ./storage/:/go/src/storage/
     ports:
       - 8082:8082
     env_file:
