@@ -10,14 +10,12 @@ import (
 	"os"
 	"strconv"
 	u "storage/utils"
+	"github.com/gorilla/mux"
 	"strings"
 )
 var downloadDir string
 
 func getAbsDirectory() string {
-	// TODO irindul 2019-05-22 : Fetch from ENV/DB for base folder
-	// Add this to a volume in docker-compose for persitence ;)
-
 	path := os.Getenv("STORAGE_DIR")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		os.MkdirAll(path, 0600)
@@ -117,9 +115,8 @@ func (up httpUpload) parseHashToFileName(p *multipart.Part) (string, error) {
 		return "", err
 	}
 
-	replacer := strings.NewReplacer("/", "", ".", "")
 	fileName := string(hash)
-	tmp := replacer.Replace(fileName)
+	tmp := sanitarizeString(fileName)
 
 	if len(tmp) != len(fileName) {
 		msg := "hash is not a proper hash"
@@ -128,6 +125,11 @@ func (up httpUpload) parseHashToFileName(p *multipart.Part) (string, error) {
 	}
 
 	return fileName, nil
+}
+
+func sanitarizeString(toSanitarize string) string {
+	replacer := strings.NewReplacer("/", "", ".", "")
+	return replacer.Replace(toSanitarize)
 }
 
 func (up httpUpload) writeFileToDisk(path string, p *multipart.Part) {
@@ -159,67 +161,71 @@ func (up httpUpload) writeFileToDisk(path string, p *multipart.Part) {
 	log.Println("succesfully created file in ", path)
 }
 
-func download(writer http.ResponseWriter, request *http.Request) {
-	downloadDir = os.Getenv("STORAGE_DIR")
+func download(w http.ResponseWriter, r *http.Request) {
+	downloadDir = getAbsDirectory()
+	vars := mux.Vars(r)
+	fileName := vars["file"]
 
-	if _, err := os.Stat(downloadDir); os.IsNotExist(err) {
-		err = os.MkdirAll(downloadDir, 0600)
-		if err != nil {
-			panic(err)
-		}
-	}
 
-	//First of check if Get is set in the URL
-	file := request.URL.Query().Get("file")
-	if file == "" {
-		//Get not set, send a 400 bad request
-		http.Error(writer, "Get 'file' not specified in url.", 400)
+	if fileName == "" {
+		u.RespondWithMsg(w, http.StatusBadRequest, "File was not specified")
 		return
 	}
-	fmt.Println("Client requests: " + file)
-	file = strings.Replace(file, "/", "", -1)
-	//Check if file exists and open
-	openfile, err := os.Open(downloadDir + file)
-	defer openfile.Close() //Close after function return
+
+	fileName = sanitarizeString(fileName)
+	log.Printf("client requested %s\n", fileName)
+
+	path := downloadDir + fileName
+
+	file, err := os.Open(path)
+	defer file.Close()
 	if err != nil {
-		//File not found, send 404
-		http.Error(writer, "File not found.", 404)
-		log.Printf("ERror: %v", err)
-		return
+		if os.IsNotExist(err) {
+			u.RespondWithMsg(w, http.StatusNotFound, fmt.Sprintf("file %s not found", fileName))
+			return
+		}
+		u.RespondWithError(w, http.StatusInternalServerError, err)
+
 	}
 
-	//File is found, create and send the correct headers
 
-	//Get the Content-Type of the file
-	//Create a buffer to store the header of the file in
-	FileHeader := make([]byte, 512)
+
+	fileHeader := make([]byte, 512)
+
 	//Copy the headers into the FileHeader buffer
-	_, _ = openfile.Read(FileHeader)
+	_, _ = file.Read(fileHeader)
+
 	//Get content type of file
-	FileContentType := http.DetectContentType(FileHeader)
+	contentType := http.DetectContentType(fileHeader)
 
 	//Get the file size
-	FileStat, _ := openfile.Stat()                     //Get info from file
-	FileSize := strconv.FormatInt(FileStat.Size(), 10) //Get file size as a string
+	stat, _ := file.Stat()                         //Get info from file
+	fileSize := strconv.FormatInt(stat.Size(), 10) //Get file size as a string
 
 	//Send the headers
-	writer.Header().Set("Content-Disposition", "attachment; filename="+file)
-	writer.Header().Set("Content-Type", FileContentType)
-	writer.Header().Set("Content-Length", FileSize)
+	w.Header().Set("Content-Disposition", "attachment; filename="+fileName)
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Length", fileSize)
 
 	//Send the file
-	//We read 512 bytes from the file already, so we reset the offset back to 0
-	_, err= openfile.Seek(0, 0)
+	_, err= file.Seek(0, 0)
 	if err != nil {
-		panic(err)
+		u.RespondWithError(w, http.StatusInternalServerError, err)
+		return
+
 	}
-	_, _ = io.Copy(writer, openfile) //'Copy' the file to the client
-	return
+	
+	
+	_, _ = io.Copy(w, file)
+	// TODO irindul 2019-05-26 : Handle errors !
 }
 
 func main() {
-	http.HandleFunc("/upload", uploadFile)
-	http.HandleFunc("/download", download)
+
+	r := mux.NewRouter()
+	r.HandleFunc("/upload", uploadFile)
+	r.HandleFunc("/download/{file}", download).Methods("GET")
+	http.Handle("/", r)
 
 	port := os.Getenv("STORAGE_PORT")
 	addr := ":" + port

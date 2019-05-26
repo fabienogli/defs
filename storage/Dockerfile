@@ -4,9 +4,7 @@ RUN groupadd -g 2000 go \
 WORKDIR /go/src/storage/
 
 COPY go.mod .
-
-#Uncomment this when having dependencies
-#COPY go.sum . 
+COPY go.sum .
 
 ENV GO111MODULE on
 
