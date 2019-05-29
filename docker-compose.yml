@@ -1,4 +1,3 @@
-#todo add network configurations
 #Do not expose service that do not require to be exposes (exemple loadbalancer :D)
 
 version: "3.4"

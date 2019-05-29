@@ -61,8 +61,7 @@ func NewLoadBalancerClient() (*LoadBalancerClient, error) {
 
 	if err != nil {
 		log.Println("error trying to dial : " +  err.Error())
-		//We don't handle the error here because we need to send it back to the client
-		// TODO irindul 2019-05-20 : Check if its timed out, maybe retry a couple of times
+		//We don't handle the error here because we need to send it back to the client 
 		return nil, err
 	}
 
