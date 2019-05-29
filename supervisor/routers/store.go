@@ -6,23 +6,35 @@ import (
 	"log"
 	"net/http"
 	"os"
-	//s "supervisor/storage"
-	//u "supervisor/utils"
+	"strings"
+	s "supervisor/storage"
+	u "supervisor/utils"
 )
 
 func upload(w http.ResponseWriter, r *http.Request) {
 
 }
 
+
 func download(w http.ResponseWriter, r *http.Request) {
 	// TODO irindul 2019-05-26 : Get storage from loadbalancer
-	storateDns := "http://storage"
-	storagePortStr := os.Getenv("STORAGE_PORT")
+
 
 	vars := mux.Vars(r)
 	hash := vars["hash"]
 
-	url := storateDns + ":" + storagePortStr + "/download/" + hash
+	lb, err := s.NewLoadBalancerClient()
+	if err != nil {
+		u.RespondWithError(w, http.StatusInternalServerError, err)
+		return
+	}
+	response := lb.WhereIs(hash)
+
+	// TODO irindul 2019-05-28 : Parse properly
+	storeDns := strings.Split(response, " ")[1]
+	storagePortStr := os.Getenv("STORAGE_PORT")
+	// TODO irindul 2019-05-28 : Get http protocol frop .env (so we can easilly switch to https)
+	url := "http://" + storeDns + ":" + storagePortStr + "/download/" + hash
 
 	proxyRequest, err := http.NewRequest(http.MethodGet, url, r.Body)
 
