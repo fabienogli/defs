@@ -38,3 +38,7 @@ func RespondWithError(w http.ResponseWriter, code int, err error) {
 	}
 	RespondWithJSON(w, code, map[string]string{"error": msg})
 }
+
+func RespondWithMsg(w http.ResponseWriter, code int, msg string) {
+	RespondWithJSON(w, code, map[string]string{"message": msg})
+}

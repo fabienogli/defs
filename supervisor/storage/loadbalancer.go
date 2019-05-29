@@ -6,15 +6,22 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 )
 
-type StoreErr uint8
+type StoreResp int
 
 const (
-	HashAlreadyExisting StoreErr = 1
-	NoStorageLeft       StoreErr = 2
-	HashNotFound        StoreErr = 3
+	Ok					StoreResp = 0
+	HashAlreadyExisting StoreResp = 1
+	NoStorageLeft       StoreResp = 2
+	HashNotFound        StoreResp = 3
 )
+
+func (s StoreResp) String() string {
+	return fmt.Sprintf("%d", s)
+}
 
 type StoreAction uint8
 
@@ -23,9 +30,12 @@ const (
 	WhereIs StoreAction = 1
 )
 
+func (a StoreAction) String() string {
+	return fmt.Sprintf("%d", int(a))
+}
+
 type LoadBalancerClient struct {
 	Conn     *net.UDPConn
-	Messages chan string
 }
 
 func GetUDPAddrOfLB() (*net.UDPAddr,error) {
@@ -58,17 +68,18 @@ func NewLoadBalancerClient() (*LoadBalancerClient, error) {
 	}
 
 	Conn, err := net.DialUDP("udp", nil, udpAddr)
+	_ = Conn.SetDeadline(time.Now().Add(time.Second*10))
+	_ = Conn.SetReadDeadline(time.Now().Add(time.Second*10))
 
 	if err != nil {
 		log.Println("error trying to dial : " +  err.Error())
-		//We don't handle the error here because we need to send it back to the client
-		// TODO irindul 2019-05-20 : Check if its timed out, maybe retry a couple of times
+		//We don't handle the error here because we need to send it back to the client 
 		return nil, err
+
 	}
 
 	lb := LoadBalancerClient{
 		Conn:     Conn,
-		Messages: make(chan string),
 	}
 
 	return &lb, nil
@@ -76,23 +87,37 @@ func NewLoadBalancerClient() (*LoadBalancerClient, error) {
 
 func (lb *LoadBalancerClient) Close() {
 	lb.Conn.Close()
-	close(lb.Messages)
 }
 
-func (lb *LoadBalancerClient) WhereTo(hash string, sizeInKb int) {
-	code := WhereTo
-	query := fmt.Sprintf("%d %s %d", code, hash, sizeInKb)
+func (lb *LoadBalancerClient) Query(code StoreAction, params ... string ) (string, error) {
+	query :=  code.String() + " " + strings.Join(params, " ")
+	log.Println("querying ", query)
 	_, err := lb.Conn.Write([]byte(query))
 	if err != nil {
-		log.Println("error : ", err.Error())
+		log.Printf("error writing query %s : %s\n", query, err)
+		return "", err
 	}
 
-
+	//Awaiting response
 	buf := make([]byte, 1024)
 	n, err := lb.Conn.Read(buf)
 	if err != nil {
-		log.Println("error : ", err.Error())
+		log.Println("error reading from conn : ", err.Error())
+		return "", err
 	}
 
-	log.Printf("Dns received : %s\n", string(buf[:n]))
+	resp := string(buf[:n])
+	return resp, nil
+}
+
+
+func (lb *LoadBalancerClient) WhereTo(hash string, sizeInKb int) (string, error) {
+	code := WhereTo
+	sizeStr := strconv.Itoa(sizeInKb)
+	return lb.Query(code, hash, sizeStr)
+}
+
+func (lb *LoadBalancerClient) WhereIs(hash string) (string, error) {
+	code := WhereIs
+	return lb.Query(code, hash)
 }
