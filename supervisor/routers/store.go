@@ -1,9 +1,11 @@
 package routers
 
 import (
+	"fmt"
 	"github.com/gorilla/mux"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -15,31 +17,46 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
 }
 
-
 func download(w http.ResponseWriter, r *http.Request) {
-	// TODO irindul 2019-05-26 : Get storage from loadbalancer
-
-
 	vars := mux.Vars(r)
 	hash := vars["hash"]
 
 	lb, err := s.NewLoadBalancerClient()
+	defer lb.Close()
 	if err != nil {
 		u.RespondWithError(w, http.StatusInternalServerError, err)
 		return
 	}
-	response := lb.WhereIs(hash)
+	response, err := lb.WhereIs(hash)
+	if err != nil {
+		if e, ok := err.(net.Error); ok && e.Timeout() {
+			u.RespondWithError(w, http.StatusGatewayTimeout, err)
+			return
+		}
+		u.RespondWithError(w, http.StatusInternalServerError, err)
+		return
+	}
 
-	// TODO irindul 2019-05-28 : Parse properly
-	storeDns := strings.Split(response, " ")[1]
+	respPart := strings.Split(response, " ")
+
+	if respPart[0] != s.Ok.String() {
+		switch respPart[0] {
+		case s.HashNotFound.String():
+			u.RespondWithError(w, http.StatusNotFound, fmt.Errorf("hash not found"))
+			return
+		default:
+			u.RespondWithError(w, http.StatusNotImplemented, fmt.Errorf("response not implemented : %s", respPart[0]))
+		}
+	}
+
+	storeDns := respPart[1]
 	storagePortStr := os.Getenv("STORAGE_PORT")
-	// TODO irindul 2019-05-28 : Get http protocol frop .env (so we can easilly switch to https)
-	url := "http://" + storeDns + ":" + storagePortStr + "/download/" + hash
+	protocol := os.Getenv("STORAGE_PROTOCOL")
+	url := protocol + "://" + storeDns + ":" + storagePortStr + "/download/" + hash
 
 	proxyRequest, err := http.NewRequest(http.MethodGet, url, r.Body)
-
-	// TODO irindul 2019-05-26 : Change this with env variable
-	proxyRequest.Header.Set("HOST", "supervisor")
+	hostName := os.Getenv("SUPERVISOR_HTTP_HOST")
+	proxyRequest.Header.Set("HOST", hostName)
 
 
 	// We may want to filter some headers, otherwise we could just use a shallow copy
@@ -52,7 +69,7 @@ func download(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{}
 	resp, err := client.Do(proxyRequest)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		u.RespondWithError(w, http.StatusBadGateway, err)
 		log.Println(err.Error())
 		return
 	}
@@ -60,11 +77,10 @@ func download(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
-
-	//u.RespondWithMsg(w, http.StatusOK, "swag")
 }
 
-func SetStoreRoute(r *mux.Router) *mux.Router {
+func
+SetStoreRoute(r *mux.Router) *mux.Router {
 	r.HandleFunc("/file", createFile).Methods("POST")
 	r.HandleFunc("/file/{hash}", download).Methods("GET")
 	return r
