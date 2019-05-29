@@ -12,17 +12,40 @@ import (
 	"strings"
 )
 
+type Query int
+
+const (
+	WhereTo Query= 0
+	WhereIs Query = 1
+)
+
+func (q Query) String() string {
+	return fmt.Sprintf("%d", q)
+}
+
+type Response int
+const (
+	OK					Response = 0
+	HashAlreadyExisting Response = 1
+	NoStorageLeft       Response = 2
+	HashNotFound        Response = 3
+)
+
+func (r Response) String() string {
+	return fmt.Sprintf("%d", r)
+}
+
 func main() {
 	portStr := os.Getenv("LOADBALANCER_PORT")
 	if portStr == "" {
 		panic("Port wasn't found\n")
 	}
-	port, err:= strconv.Atoi(portStr)
+	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		log.Println(err)
 		panic(fmt.Sprintf("error converting port from string to int : %S", err.Error()))
 	}
-	startUdpServer([]byte{0,0,0,0}, port)
+	startUdpServer([]byte{0, 0, 0, 0}, port)
 }
 
 func startUdpServer(ip []byte, port int) {
@@ -51,36 +74,58 @@ func listen(connection *net.UDPConn, quit chan bool) {
 	buffer := make([]byte, 1024)
 
 	for {
+
+		//If the connection was closed, we return
+		if connection == nil {
+			return
+		}
+
 		//Wait for packets
 		n, remoteAddr, err := connection.ReadFromUDP(buffer)
 
 		if err != nil {
-			// TODO irindul 2019-05-28 : Handle ConnectionTimedOut etc...
-			log.Printf("error while reading from socket : %s", err.Error())
-			break
+			if e, ok := err.(net.Error); !ok || !e.Timeout() {
+				log.Printf("error while reading from socket : %s", err.Error())
+				break
+			}
+
+			//Timeout error
+			log.Printf("timed out")
+			continue
 		}
 
 		//Parse query from packet
 		query := string(buffer[:n])
 		log.Println("from", remoteAddr, "-", query)
 
-		queryPart := strings.Split(query, " ")
+		queryParts := strings.Split(query, " ")
+		if len(queryParts) == 0 {
+			//We ignore all malformed queries
+			continue
+		}
 
-		// TODO irindul 2019-05-28 : Put enum here
-		// TODO irindul 2019-05-28 : Handle queryPart malformed here!
-		switch queryPart[0] {
-		case "1":
-			hash := queryPart[1]
+		switch queryParts[0] {
+		case WhereIs.String():
+			if len(queryParts) != 2 {
+				continue
+			}
+
+			hash := queryParts[1]
 			go HandleWhereIs(connection, remoteAddr, hash)
-		case "0":
-			hash := queryPart[1]
-			size, _ := strconv.Atoi(queryPart[2]) //todo check error (malformed request)
+		case WhereTo.String():
+			if len(queryParts) != 3 {
+				continue
+			}
+
+			hash := queryParts[1]
+			size, err := strconv.Atoi(queryParts[2])
+			if err != nil {
+				continue
+			}
 			go HandleWhereTo(connection, remoteAddr, hash, size)
-		//HandleWhereTo()
-		case "":
 		default:
-			//Ignore
-			//Handle default case
+			//Ignore by default
+			continue
 		}
 	}
 	quit <- true
@@ -88,26 +133,20 @@ func listen(connection *net.UDPConn, quit chan bool) {
 
 func HandleWhereTo(connection *net.UDPConn, addr *net.UDPAddr, hash string, size int) {
 	//todo Query DB here with function whereTo(hash, size) etc...
-	//todo craft response with enum
 
-	resp := "0 storage"
+	resp := OK.String() + " storage"
 	Respond(connection, addr, resp)
-
-
 }
 
 func HandleWhereIs(connection *net.UDPConn, addr *net.UDPAddr, hash string) {
-
 	// TODO irindul 2019-05-28 : Query DB here with function whereIs(hash)
 
-	//todo craft response with enum
-	resp := "0 storage"
+	resp := OK.String() + " storage"
 	Respond(connection, addr, resp)
 }
 
 func Respond(connection *net.UDPConn, addr *net.UDPAddr, resp string) {
 	respBytes := []byte(resp)
-	log.Println("Paylaod size ")
 	_, err := connection.WriteToUDP(respBytes, addr)
 	if err != nil {
 		log.Println("could not write response ", err.Error())
