@@ -43,7 +43,7 @@ func main() {
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		log.Println(err)
-		panic(fmt.Sprintf("error converting port from string to int : %S", err.Error()))
+		panic(fmt.Sprintf("error converting port from string to int : %s", err.Error()))
 	}
 	startUdpServer([]byte{0, 0, 0, 0}, port)
 }
