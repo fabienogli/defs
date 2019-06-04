@@ -114,6 +114,14 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusOK {
+		infos := map[string]string{
+			"hash": hash,
+		}
+
+		u.RespondWithJSON(w, http.StatusOK, infos)
+		return
+	}
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
 }
