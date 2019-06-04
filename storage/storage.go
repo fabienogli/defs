@@ -103,8 +103,8 @@ func (up httpUpload) parseHashToFileName(p *multipart.Part) (string, error) {
 		return "", fmt.Errorf("hash file not present")
 	}
 
-	//Hash is 256-bit long (which is 32 bytes ;) )
-	hashSize := 32 //bytes
+	//Hash is 256-bit long, encoded in 64 bit for readability)
+	hashSize := 64 //bytes
 	hash := make([]byte, hashSize)
 	n, err := p.Read(hash)
 	if err != nil && err != io.EOF {
@@ -112,7 +112,7 @@ func (up httpUpload) parseHashToFileName(p *multipart.Part) (string, error) {
 		return "", err
 	}
 	if n != hashSize {
-		u.RespondWithMsg(up.w, http.StatusUnprocessableEntity, fmt.Sprintf("hash must be %d bit long, was %d", hashSize*8, n))
+		u.RespondWithMsg(up.w, http.StatusUnprocessableEntity, fmt.Sprintf("hash must be %d bit long, was %d", hashSize, n))
 		return "", err
 	}
 
