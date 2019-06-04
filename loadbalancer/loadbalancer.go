@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/gomodule/redigo/redis"
 	"loadbalancer/database"
 	"log"
 	"net"
@@ -15,7 +16,7 @@ import (
 type Query int
 
 const (
-	WhereTo Query= 0
+	WhereTo Query = 0
 	WhereIs Query = 1
 )
 
@@ -25,7 +26,7 @@ func (q Query) String() string {
 
 type Response int
 const (
-	OK					Response = 0
+	OK                  Response = 0
 	HashAlreadyExisting Response = 1
 	NoStorageLeft       Response = 2
 	HashNotFound        Response = 3
@@ -35,8 +36,20 @@ func (r Response) String() string {
 	return fmt.Sprintf("%d", r)
 }
 
+var conn redis.Conn
+
+func getDatabase() *redis.Pool{
+	addr := os.Getenv("ROUTING_DB_ADDR")
+	sport := os.Getenv("ROUTING_DB_PORT")
+	port,_  := strconv.Atoi(sport)
+	return database.NewPool(addr, port)
+}
+
 func main() {
 	portStr := os.Getenv("LOADBALANCER_PORT")
+	pool := getDatabase()
+	conn := pool.Get()
+	defer conn.Close()
 	if portStr == "" {
 		panic("Port wasn't found\n")
 	}
@@ -155,27 +168,69 @@ func Respond(connection *net.UDPConn, addr *net.UDPAddr, resp string) {
 
 //get the location of the file
 func whereIs(hash string) (database.Storage, error) {
-	return database.Storage{}, errors.New("Not implemented")
+	file, err := database.GetFile(hash, conn)
+	if err == nil {
+		storage, err := database.GetStorage(file.DNS, conn)
+		return storage, err
+	}
+	return database.Storage{}, err
 }
 
 //Get the best Storage for file
-func whereTo(hash string, size int) (database.Storage, error) {
-	return database.Storage{}, errors.New("Not implemented")
+func whereTo(hash string, size int) (database.Storage, Response) {
+	_, err := database.GetFile(hash, conn)
+	if err == nil {
+		return database.Storage{}, HashAlreadyExisting
+	}
+	storages, err := database.GetStorages(conn)
+	min := uint(0)
+	i := 0
+	for index, storage := range storages {
+		temp := storage.GetAvailableSpace()
+		if min < temp {
+			min = temp
+			i = index
+		}
+	}
+	if min != 0 && uint(size) < storages[0].GetAvailableSpace() {
+		return storages[i], OK
+	}
+	return database.Storage{}, NoStorageLeft
 }
 
 func delete(hash string) error {
-	return errors.New("Not implemented")
+	file, err := database.GetFile(hash, conn)
+	if err != nil {
+		return err
+	}
+	err = file.Delete(conn)
+	return err
 }
 
 func store(hash string) error {
+	//@TODO need to set a TTL (60s) until tcp connection with storage
+	//file, err := database.GetFile(hash, conn)
+
 	return errors.New("Not implemented")
 }
 
-//send id back
+//@TODO shouldn't be good to delete all file as well ?
 func subscribe(dns string, used, total uint) (uint, error) {
-	return 0, errors.New("Not implemented")
+	storage := database.Storage{
+		DNS:dns,
+		Used:used,
+		Total:total,
+	}
+	storage.GenerateUid(conn)
+	err := storage.Save(conn)
+	return storage.ID, err
 }
 
 func unsubscribe(id uint) error {
-	return errors.New("Not implemented")
+	storage, err := database.GetStorage(id, conn)
+	if err != nil {
+		return err //@TODO not sure of that
+	}
+	err = storage.Delete(conn)
+	return err
 }

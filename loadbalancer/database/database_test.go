@@ -45,9 +45,6 @@ func TestCreateStorage(t *testing.T) {
 	// Initiate connection
 	pool := getPool()
 	conn := pool.Get()
-	defer conn.Close()
-	defer conn.Do("FLUSHALL")
-
 	key := uint(1)
 	storage := getGoodStorage(key)
 	err := storage.Create(conn)
@@ -384,5 +381,5 @@ func TestExpFile(t *testing.T) {
 }
 
 func getPool() *redis.Pool {
-	return newPool("test_routing_table", 6379)
+	return NewPool("test_routing_table", 6379)
 }

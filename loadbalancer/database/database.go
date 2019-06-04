@@ -34,7 +34,11 @@ type Cud interface {
 	Delete(conn redis.Conn) error
 }
 
-func newPool(address string, port int) *redis.Pool {
+func (storage Storage) GetAvailableSpace() uint {
+	return storage.Total - storage.Used
+}
+
+func NewPool(address string, port int) *redis.Pool {
 	address += ":" + strconv.Itoa(port)
 	return &redis.Pool{
 		// Maximum number of idle connections in the pool.
@@ -51,6 +55,14 @@ func newPool(address string, port int) *redis.Pool {
 			return c, err
 		},
 	}
+}
+
+func (storage Storage)  GenerateUid(conn redis.Conn) {
+	if storage.ID == 0 {
+		return
+	}
+	tmp, _ := redis.Strings(conn.Do("KEYS", StoragePrefix+"*"))
+	storage.ID = uint(len(tmp) + 1)
 }
 
 func getKeys(pattern string, conn redis.Conn) ([]string, error) {
