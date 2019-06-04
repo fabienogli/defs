@@ -3,16 +3,17 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/gorilla/mux"
 	"io"
 	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
-	"strconv"
 	u "storage/utils"
-	"github.com/gorilla/mux"
+	"strconv"
 	"strings"
 )
+
 var downloadDir string
 
 func getAbsDirectory() string {
@@ -25,12 +26,13 @@ func getAbsDirectory() string {
 }
 
 type httpUpload struct {
-	w http.ResponseWriter
-	r* http.Request
+	w         http.ResponseWriter
+	r         *http.Request
 	sizeLimit int64
 }
 
-func uploadFile(w http.ResponseWriter, r* http.Request) {
+func uploadFile(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(r.Header)
 	limitInMbStr := os.Getenv("STORAGE_LIMIT")
 	limitInMb, _ := strconv.Atoi(limitInMbStr)
 	maxSizeInByte := int64(limitInMb * 1024 * 1024)
@@ -38,12 +40,12 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 	//Limit DoS by setting a limit to the body reading
 	//The 1024 added are for the content of the metadata, may be augmented if fitted but
 	//should be high enough.
-	limit := maxSizeInByte +  1024
+	limit := maxSizeInByte + 1024
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 
 	upload := httpUpload{
-		w: w,
-		r: r,
+		w:         w,
+		r:         r,
 		sizeLimit: maxSizeInByte,
 	}
 
@@ -56,7 +58,7 @@ func uploadFile(w http.ResponseWriter, r* http.Request) {
 	u.RespondWithMsg(w, 200, "file uploaded successfully")
 }
 
-func (up httpUpload) parseMultiPartForm() error{
+func (up httpUpload) parseMultiPartForm() error {
 	reader, err := up.r.MultipartReader()
 	if err != nil {
 		u.RespondWithError(up.w, http.StatusBadRequest, err)
@@ -75,7 +77,6 @@ func (up httpUpload) parseMultiPartForm() error{
 		log.Println(err.Error())
 		return err
 	}
-
 
 	// parse file field
 	p, err = reader.NextPart()
@@ -106,7 +107,7 @@ func (up httpUpload) parseHashToFileName(p *multipart.Part) (string, error) {
 	hashSize := 32 //bytes
 	hash := make([]byte, hashSize)
 	n, err := p.Read(hash)
-	if err != nil  && err != io.EOF {
+	if err != nil && err != io.EOF {
 		u.RespondWithError(up.w, http.StatusUnprocessableEntity, err)
 		return "", err
 	}
@@ -152,7 +153,7 @@ func (up httpUpload) writeFileToDisk(path string, p *multipart.Part) {
 
 	//Somehow the file was bigger than expected
 	if written > up.sizeLimit {
-		log.Printf("file was removed : size (%d) too big (limit = %d)",  written, up.sizeLimit)
+		log.Printf("file was removed : size (%d) too big (limit = %d)", written, up.sizeLimit)
 		os.Remove(tmpFile.Name())
 		u.RespondWithMsg(up.w, http.StatusUnprocessableEntity, "file size over limit")
 		return
@@ -165,7 +166,6 @@ func download(w http.ResponseWriter, r *http.Request) {
 	downloadDir = getAbsDirectory()
 	vars := mux.Vars(r)
 	fileName := vars["file"]
-
 
 	if fileName == "" {
 		u.RespondWithMsg(w, http.StatusBadRequest, "File was not specified")
@@ -188,8 +188,6 @@ func download(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-
-
 	fileHeader := make([]byte, 512)
 
 	//Copy the headers into the FileHeader buffer
@@ -208,14 +206,13 @@ func download(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", fileSize)
 
 	//Send the file
-	_, err= file.Seek(0, 0)
+	_, err = file.Seek(0, 0)
 	if err != nil {
 		u.RespondWithError(w, http.StatusInternalServerError, err)
 		return
 
 	}
-	
-	
+
 	_, _ = io.Copy(w, file)
 	// TODO irindul 2019-05-26 : Handle errors !
 }
