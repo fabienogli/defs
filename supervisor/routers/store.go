@@ -18,7 +18,21 @@ import (
 	"time"
 )
 
-func hash(fileName string) string {
+type HashErr uint8
+
+func (HashErr) Error() string {
+	return "Hash already exists"
+}
+
+func (HashErr) Timeout() bool {
+	panic("implement me")
+}
+
+func (HashErr) Temporary() bool {
+	panic("implement me")
+}
+
+func hashSHA256(fileName string) string {
 	t := time.Now().String()
 	hash := sha256.Sum256([]byte(fileName + t))
 	return hex.EncodeToString(hash[:])
@@ -26,13 +40,19 @@ func hash(fileName string) string {
 
 func upload(w http.ResponseWriter, r *http.Request) {
 
+	// TODO irindul 2019-06-04 : Read max size from env
 	r.ParseMultipartForm(3500 * 1024 * 1024) //3.5GB
 	filename := r.FormValue("filename")
-	hash := hash(filename)
+
+	if filename == "" {
+		u.RespondWithMsg(w, http.StatusUnprocessableEntity, "filename must be provided")
+		return
+	}
 
 	file, fileHeader, err := r.FormFile("file")
 	if err != nil {
-		//encodeResponse(w, req, response{obj: nil, err: err})
+		u.RespondWithMsg(w, http.StatusUnprocessableEntity, "file must be provided")
+		log.Println(err)
 		return
 	}
 	defer file.Close()
@@ -45,39 +65,33 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO irindul 2019-06-04 : Parse size as well
-	response, err := lb.WhereTo(hash, 1)
-	if err != nil {
-		//Swag
-	}
-
-	respPart := strings.Split(response, " ")
-
-	if respPart[0] != s.Ok.String() {
-		switch respPart[0] {
-		case s.HashAlreadyExisting.String():
-			//Todo rehash file and loop...
-			return
-		default:
-			u.RespondWithError(w, http.StatusNotImplemented, fmt.Errorf("response not implemented : %s", respPart[0]))
+	var baseUrl = ""
+	var hash = hashSHA256(filename)
+	for true {
+		response, err := lb.WhereTo(hash, int(fileHeader.Size))
+		if err != nil {
+			// TODO irindul 2019-06-04 : Handle LB connection error
 		}
+		baseUrl, err = getBaseUrl(response, w)
+		if err != nil {
+			if _, ok := err.(HashErr); ok {
+				hash = hashSHA256(filename)
+				continue
+			} else {
+				return
+			}
+		}
+		break
 	}
 
-	storeDns := respPart[1]
-	storagePortStr := os.Getenv("STORAGE_PORT")
-	protocol := os.Getenv("STORAGE_PROTOCOL")
-
-	url := fmt.Sprintf("%s://%s:%s/upload", protocol, storeDns, storagePortStr)
-
+	url := baseUrl + "upload"
 	body := &bytes.Buffer{}
 	bodyWriter := multipart.NewWriter(body)
 
 	bodyWriter.WriteField("hash", hash)
 
 	// add a form file to the body
-	fmt.Println(fileHeader.Filename)
 	fileWriter, err := bodyWriter.CreateFormFile("file", fileHeader.Filename)
-	fmt.Println(len(body.Bytes()))
 	if err != nil {
 		// TODO irindul 2019-06-04 : err
 		log.Println("errror")
@@ -124,22 +138,11 @@ func download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respPart := strings.Split(response, " ")
-
-	if respPart[0] != s.Ok.String() {
-		switch respPart[0] {
-		case s.HashNotFound.String():
-			u.RespondWithError(w, http.StatusNotFound, fmt.Errorf("hash not found"))
-			return
-		default:
-			u.RespondWithError(w, http.StatusNotImplemented, fmt.Errorf("response not implemented : %s", respPart[0]))
-		}
+	baseUrl, err := getBaseUrl(response, w)
+	if err != nil {
+		return
 	}
-
-	storeDns := respPart[1]
-	storagePortStr := os.Getenv("STORAGE_PORT")
-	protocol := os.Getenv("STORAGE_PROTOCOL")
-	url := protocol + "://" + storeDns + ":" + storagePortStr + "/download/" + hash
+	url := baseUrl + "download/" + hash
 
 	proxyRequest, err := http.NewRequest(http.MethodGet, url, r.Body)
 	hostName := os.Getenv("SUPERVISOR_HTTP_HOST")
@@ -163,6 +166,32 @@ func download(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+}
+
+func getBaseUrl(response string, w http.ResponseWriter) (string, error) {
+	respPart := strings.Split(response, " ")
+	if respPart[0] != s.Ok.String() {
+		switch respPart[0] {
+		case s.HashAlreadyExisting.String():
+			//Todo rehash file and loop...
+			return "", HashErr(uint8(s.HashAlreadyExisting))
+		case s.HashNotFound.String():
+			err := fmt.Errorf("hash not found")
+			u.RespondWithError(w, http.StatusNotFound, err)
+			return "", err
+		default:
+			err := fmt.Errorf("response not implemented : %s", respPart[0])
+			u.RespondWithError(w, http.StatusNotImplemented, err)
+			return "", err
+		}
+	}
+
+	storeDns := respPart[1]
+	storagePortStr := os.Getenv("STORAGE_PORT")
+	protocol := os.Getenv("STORAGE_PROTOCOL")
+
+	url := fmt.Sprintf("%s://%s:%s/", protocol, storeDns, storagePortStr)
+	return url, nil
 }
 
 func SetStoreRoute(r *mux.Router) *mux.Router {
