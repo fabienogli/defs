@@ -198,6 +198,11 @@ func (file File) Save(conn redis.Conn) error {
 	return nil
 }
 
+func (file File) SetExp(duration int, conn redis.Conn) error {
+	_, err := conn.Do("EXPIRE", FilePrefix + file.Hash, duration)
+	return err
+}
+
 func mediate(lama string) string {
 	return strings.Replace(lama, " ", "", -1)
 }

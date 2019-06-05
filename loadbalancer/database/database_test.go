@@ -5,17 +5,10 @@ import (
 	"testing"
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/gomodule/redigo/redis"
 )
-
-//@TODO
-
-//Sauvegarder un hash qui n'existe pas et le get
-//Sauvegarder un hash qui existe et erreur
-//Erreur full
-//get un hash sauvegarder
-//Delete un fichier
 
 func check(err error, t *testing.T) {
 	if err != nil {
@@ -365,6 +358,29 @@ func TestDeleteFile(t *testing.T) {
 
 	_, err = GetFile(file2.Hash, conn)
 	check(err, t)
+}
+
+func TestExpFile(t *testing.T) {
+	// Initiate connection
+	pool := getPool()
+	conn := pool.Get()
+	defer conn.Close()
+	defer conn.Do("FLUSHALL")
+
+	key := "file"
+	file := getGoodFile(key)
+	file.preCreate(conn)
+	err := file.Create(conn)
+	check(err, t)
+	ttl := 1 //seconds
+	err = file.SetExp(ttl, conn)
+	check(err, t)
+	duration := float32(ttl)+ 0.000001
+	time.Sleep(time.Duration(duration) * time.Second)
+	_, err = redis.String(conn.Do("GET", FilePrefix + key))
+	if err != redis.ErrNil {
+		t.Error("File should be erased")
+	}
 }
 
 func getPool() *redis.Pool {
