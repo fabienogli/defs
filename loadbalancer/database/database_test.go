@@ -25,7 +25,7 @@ func check(err error, t *testing.T) {
 
 // Test client connection
 func TestClient(t *testing.T) {
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -50,7 +50,7 @@ func getGoodStorage(key uint) Storage {
 
 func TestCreateStorage(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -95,7 +95,7 @@ func getGoodFile(key string) File {
 
 func TestCreateFile(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -120,7 +120,7 @@ func TestCreateFile(t *testing.T) {
 
 func TestCreateBigFile(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -137,7 +137,7 @@ func TestCreateBigFile(t *testing.T) {
 
 func TestGetStorage(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -155,7 +155,7 @@ func TestGetStorage(t *testing.T) {
 
 func TestGetFile(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -172,7 +172,7 @@ func TestGetFile(t *testing.T) {
 }
 func TestUpdateStorage(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -195,7 +195,7 @@ func TestUpdateStorage(t *testing.T) {
 
 func TestUpdateFile(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -222,7 +222,7 @@ func TestUpdateFile(t *testing.T) {
 
 func TestCreateAlreadyExistingFile(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -240,7 +240,7 @@ func TestCreateAlreadyExistingFile(t *testing.T) {
 
 func TestCreateAlreadyExistingStorage(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -258,7 +258,7 @@ func TestCreateAlreadyExistingStorage(t *testing.T) {
 
 func TestSaveFileWithMalformDNS(t *testing.T) {
 	// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -277,7 +277,7 @@ func TestSaveFileWithMalformDNS(t *testing.T) {
 
 func TestSaveMalformFile(t *testing.T) {
 		// Initiate connection
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -310,7 +310,7 @@ func TestSaveMalformFile(t *testing.T) {
 }
 
 func TestSaveMalformStorage(t *testing.T) {
-	pool := newPool()
+	pool := getPool()
 	conn := pool.Get()
 	defer conn.Close()
 	defer conn.Do("FLUSHALL")
@@ -326,4 +326,46 @@ func TestSaveMalformStorage(t *testing.T) {
 	if err == nil {
 		t.Errorf("More used space than total space")
 	}
+}
+
+func TestDeleteStorage(t *testing.T) {
+	pool := getPool()
+	conn := pool.Get()
+	defer conn.Close()
+	defer conn.Do("FLUSHALL")
+	storage1 := getGoodStorage(uint(1))
+	storage1.Create(conn)
+	storage2 := getGoodStorage(uint(2))
+	storage2.Create(conn)
+	err := storage1.Delete(conn)
+	check(err, t)
+
+	_, err = GetStorage(storage2.ID, conn)
+	check(err, t)
+}
+
+func TestDeleteFile(t *testing.T) {
+	// Initiate connection
+	pool := getPool()
+	conn := pool.Get()
+	defer conn.Close()
+	defer conn.Do("FLUSHALL")
+
+	keyd := "file1"
+	keyf := "file2"
+	file1 := getGoodFile(keyd)
+	file2 := getGoodFile(keyf)
+	file1.preCreate(conn)
+	file2.preCreate(conn)
+
+
+	err := file1.Delete(conn)
+	check(err, t)
+
+	_, err = GetFile(file2.Hash, conn)
+	check(err, t)
+}
+
+func getPool() *redis.Pool {
+	return newPool("test_routing_table", 6379)
 }

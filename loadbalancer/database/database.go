@@ -35,7 +35,8 @@ type Cud interface {
 	Delete(conn redis.Conn) error
 }
 
-func newPool() *redis.Pool {
+func newPool(address string, port int) *redis.Pool {
+	address += ":" + strconv.Itoa(port)
 	return &redis.Pool{
 		// Maximum number of idle connections in the pool.
 		MaxIdle: 80,
@@ -44,7 +45,7 @@ func newPool() *redis.Pool {
 		// Dial is an application supplied function for creating and
 		// configuring a connection.
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", "routing_table:6379")
+			c, err := redis.Dial("tcp", address)
 			if err != nil {
 				panic(err.Error())
 			}

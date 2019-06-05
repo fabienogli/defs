@@ -31,7 +31,11 @@ services:
   routing_table:
     image: "redis:alpine"
     ports:
-      - "6379:6379"
+      - 6379:6379
+    networks:
+      - routingnet
+  test_routing_table:
+    image: "redis:alpine"
     networks:
       - routingnet
   storage:
