@@ -2,7 +2,6 @@ package database
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -219,11 +218,13 @@ func (storage Storage) Update(conn redis.Conn) error {
 	return err
 }
 
-func (file File) Delete(redis.Conn) error {
-
-	return errors.New("Not implemented")
+func (file File) Delete(conn redis.Conn) error {
+	_, err :=conn.Do("DEL", FilePrefix + file.Hash)
+	return err
 }
 
-func (storage Storage) Delete(redis.Conn) error {
-	return errors.New("Not implemented")
+func (storage Storage) Delete(conn redis.Conn) error {
+	sKey := strconv.Itoa(int(storage.ID))
+	_, err :=conn.Do("DEL", StoragePrefix + sKey)
+	return err
 }

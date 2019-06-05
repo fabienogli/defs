@@ -356,7 +356,8 @@ func TestDeleteFile(t *testing.T) {
 	file1 := getGoodFile(keyd)
 	file2 := getGoodFile(keyf)
 	file1.preCreate(conn)
-	file2.preCreate(conn)
+	file1.Create(conn)
+	file2.Create(conn)
 
 
 	err := file1.Delete(conn)
