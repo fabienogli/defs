@@ -14,6 +14,11 @@ import (
 	"strings"
 )
 
+type HashInvalid error
+type HashTooLarge error
+type HashTooShort error
+type HashNotFound error
+
 var downloadDir string
 
 func getAbsDirectory() string {
@@ -72,9 +77,30 @@ func (up httpUpload) parseMultiPartForm() error {
 
 	}
 
-	fileName, err := up.parseHashToFileName(p)
+	if p.FormName() != "hash" {
+		u.RespondWithMsg(up.w, http.StatusBadRequest, "hash of the file is expected")
+		return HashNotFound(fmt.Errorf("hash not found"))
+	}
+
+	fileName, err := parseHash(p)
 	if err != nil {
-		log.Println(err.Error())
+		statusCode := http.StatusInternalServerError
+		msg := err.Error()
+		switch err.(type) {
+		case HashTooLarge:
+			statusCode = http.StatusUnprocessableEntity
+			msg = "hash should be shorter "
+		case HashTooShort:
+			statusCode = http.StatusUnprocessableEntity
+			msg = "hash shoud be longer"
+		case HashInvalid:
+			statusCode = http.StatusUnprocessableEntity
+			msg = "hash is invalid"
+		default:
+			u.RespondWithError(up.w, statusCode, err)
+			return err
+		}
+		u.RespondWithMsg(up.w, statusCode, msg)
 		return err
 	}
 
@@ -95,6 +121,29 @@ func (up httpUpload) parseMultiPartForm() error {
 	path := dir + fileName
 	up.writeFileToDisk(path, p)
 	return nil
+}
+
+func parseHash(r io.Reader) (string, error) {
+	//Hash is 256-bit long, encoded in 64 bit for readability)
+	hashSize := 64 //bytes
+	hash := make([]byte, hashSize)
+
+	n, err := r.Read(hash)
+	if err != nil && err != io.EOF {
+		return "", HashInvalid(fmt.Errorf("hash is not valid %s", err))
+	}
+	if n < hashSize {
+		return "", HashTooShort(fmt.Errorf("hash was %d, but should be %d", n, hashSize))
+	}
+
+	fileName := string(hash)
+	sanitarized := sanitarizeString(fileName)
+
+	if len(sanitarized) != len(fileName) {
+		return "", HashInvalid(fmt.Errorf("hash contained malformed characters : %s", fileName))
+	}
+
+	return fileName, nil
 }
 
 func (up httpUpload) parseHashToFileName(p *multipart.Part) (string, error) {
