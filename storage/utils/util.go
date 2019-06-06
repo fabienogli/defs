@@ -9,7 +9,6 @@ import (
 	"os"
 )
 
-
 func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)

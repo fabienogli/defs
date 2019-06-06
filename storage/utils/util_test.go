@@ -119,3 +119,24 @@ func TestRespondWithError(t *testing.T) {
 		t.Errorf("json payload should contain key \"error\" with value \"%s\"", expectedMsg)
 	}
 }
+
+func TestRespondWithMsg(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	statusCode := http.StatusNotFound
+	expectedMsg := "file not found"
+	RespondWithMsg(recorder, statusCode, expectedMsg)
+	if recorder.Code != statusCode {
+		t.Errorf("status code should be %d, was %d", statusCode, recorder.Code)
+	}
+
+	unmarshalled := make(map[string]interface{})
+	err := json.Unmarshal(recorder.Body.Bytes(), &unmarshalled)
+	if err != nil {
+		t.Errorf("could not parse json : %s", err)
+	}
+
+	if unmarshalled["message"].(string) != expectedMsg {
+		t.Errorf("json payload should contain key \"error\" with value \"%s\"", expectedMsg)
+	}
+
+}
