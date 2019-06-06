@@ -6,7 +6,6 @@ import (
 	"github.com/gorilla/mux"
 	"io"
 	"log"
-	"mime/multipart"
 	"net/http"
 	"os"
 	u "storage/utils"
@@ -14,10 +13,6 @@ import (
 	"strings"
 )
 
-type HashInvalid error
-type HashTooLarge error
-type HashTooShort error
-type HashNotFound error
 
 var downloadDir string
 
@@ -56,7 +51,18 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 
 	err := upload.parseMultiPartForm()
 	if err != nil {
-		//Already handled in parseMultiPartForm()
+		statusCode := http.StatusInternalServerError
+		msg := err.Error()
+		switch err.(type) {
+		case HashTooLarge, HashTooShort, HashInvalid:
+			statusCode = http.StatusUnprocessableEntity
+		case BadRequest:
+			statusCode = http.StatusBadRequest
+		default:
+			u.RespondWithError(w, statusCode, err)
+			return
+		}
+		u.RespondWithMsg(w, statusCode, msg)
 		return
 	}
 
@@ -66,61 +72,37 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 func (up httpUpload) parseMultiPartForm() error {
 	reader, err := up.r.MultipartReader()
 	if err != nil {
-		u.RespondWithError(up.w, http.StatusBadRequest, err)
-		return err
+		return NewBadRequest(err.Error())
 	}
 
 	p, err := reader.NextPart()
 	if err != nil {
-		u.RespondWithError(up.w, http.StatusInternalServerError, err)
-		return err
-
+		return NewInternalError(err.Error())
 	}
 
 	if p.FormName() != "hash" {
-		u.RespondWithMsg(up.w, http.StatusBadRequest, "hash of the file is expected")
-		return HashNotFound(fmt.Errorf("hash not found"))
+		return NewHashNotFound()
 	}
 
 	fileName, err := parseHash(p)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		msg := err.Error()
-		switch err.(type) {
-		case HashTooLarge:
-			statusCode = http.StatusUnprocessableEntity
-			msg = "hash should be shorter "
-		case HashTooShort:
-			statusCode = http.StatusUnprocessableEntity
-			msg = "hash shoud be longer"
-		case HashInvalid:
-			statusCode = http.StatusUnprocessableEntity
-			msg = "hash is invalid"
-		default:
-			u.RespondWithError(up.w, statusCode, err)
-			return err
-		}
-		u.RespondWithMsg(up.w, statusCode, msg)
 		return err
 	}
 
 	// parse file field
 	p, err = reader.NextPart()
-	if err != nil && err != io.EOF {
-		u.RespondWithError(up.w, http.StatusInternalServerError, err)
-		return err
+	if err != nil {
+		return NewInternalError(err.Error())
 	}
 
 	if p.FormName() != "file" {
-		u.RespondWithMsg(up.w, http.StatusBadRequest, "file is expected")
-		return err
+		return NewBadRequest("file is expected")
 	}
 
 	//Creating file on hard drive
 	dir := getAbsDirectory()
 	path := dir + fileName
-	up.writeFileToDisk(path, p)
-	return nil
+	return writeFileToDisk(path, p, up.sizeLimit)
 }
 
 func parseHash(r io.Reader) (string, error) {
@@ -130,48 +112,17 @@ func parseHash(r io.Reader) (string, error) {
 
 	n, err := r.Read(hash)
 	if err != nil && err != io.EOF {
-		return "", HashInvalid(fmt.Errorf("hash is not valid %s", err))
+		return "", NewHashInvalid()
 	}
 	if n < hashSize {
-		return "", HashTooShort(fmt.Errorf("hash was %d, but should be %d", n, hashSize))
+		return "", NewHashTooShort()
 	}
 
 	fileName := string(hash)
 	sanitarized := sanitarizeString(fileName)
 
 	if len(sanitarized) != len(fileName) {
-		return "", HashInvalid(fmt.Errorf("hash contained malformed characters : %s", fileName))
-	}
-
-	return fileName, nil
-}
-
-func (up httpUpload) parseHashToFileName(p *multipart.Part) (string, error) {
-	if p.FormName() != "hash" {
-		u.RespondWithMsg(up.w, http.StatusBadRequest, "hash of the file is expected")
-		return "", fmt.Errorf("hash file not present")
-	}
-
-	//Hash is 256-bit long, encoded in 64 bit for readability)
-	hashSize := 64 //bytes
-	hash := make([]byte, hashSize)
-	n, err := p.Read(hash)
-	if err != nil  && err != io.EOF {
-		u.RespondWithError(up.w, http.StatusUnprocessableEntity, err)
-		return "", err
-	}
-	if n != hashSize {
-		u.RespondWithMsg(up.w, http.StatusUnprocessableEntity, fmt.Sprintf("hash must be %d bit long, was %d", hashSize, n))
-		return "", err
-	}
-
-	fileName := string(hash)
-	tmp := sanitarizeString(fileName)
-
-	if len(tmp) != len(fileName) {
-		msg := "hash is not a proper hash"
-		u.RespondWithMsg(up.w, http.StatusUnprocessableEntity, msg)
-		return "", fmt.Errorf(msg)
+		return "", NewHashInvalid()
 	}
 
 	return fileName, nil
@@ -182,33 +133,32 @@ func sanitarizeString(toSanitarize string) string {
 	return replacer.Replace(toSanitarize)
 }
 
-func (up httpUpload) writeFileToDisk(path string, p *multipart.Part) {
+func writeFileToDisk(path string, r io.Reader, sizeLimit int64) error{
+	// TODO irindul 2019-06-06 : Create Storage errors rather than InternalError (too generic)
 	tmpFile, err := os.Create(path)
 	if err != nil {
-		u.RespondWithError(up.w, http.StatusInternalServerError, err)
-		return
+		return NewInternalError(err.Error())
 	}
 	defer tmpFile.Close()
 
-	buf := bufio.NewReader(p)
+	reader := bufio.NewReader(r)
 	//Prevent from reading too much
-	lmt := io.MultiReader(buf, io.LimitReader(p, up.sizeLimit))
+	lmt := io.MultiReader(reader, io.LimitReader(r, sizeLimit))
 	written, err := io.Copy(tmpFile, lmt)
 
 	if err != nil && err != io.EOF {
-		u.RespondWithError(up.w, http.StatusInternalServerError, err)
-		return
+		return NewInternalError(err.Error())
 	}
 
 	//Somehow the file was bigger than expected
-	if written > up.sizeLimit {
-		log.Printf("file was removed : size (%d) too big (limit = %d)", written, up.sizeLimit)
+	if written > sizeLimit {
+		log.Printf("file was removed : size (%d) too big (limit = %d)", written, sizeLimit)
 		os.Remove(tmpFile.Name())
-		u.RespondWithMsg(up.w, http.StatusUnprocessableEntity, "file size over limit")
-		return
+		return NewInternalError("file size over limit")
 	}
 
 	log.Println("succesfully created file in ", path)
+	return nil
 }
 
 func download(w http.ResponseWriter, r *http.Request) {

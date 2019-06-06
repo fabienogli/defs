@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -43,5 +44,34 @@ func TestSanitarizeString(t *testing.T) {
 
 	if sanitarized != expected {
 		t.Errorf("didnt sanitarize at all, expected \"%s\", got \"%s\"", expected, sanitarized)
+	}
+}
+
+func TestParseHash(t *testing.T) {
+	validHash := "ca5ab459530e0e928155af72c8fafd74902d7469eff2224a6b3722b000ff6cdb"
+	reader := strings.NewReader(validHash)
+	parsed, err := parseHash(reader)
+	if err != nil {
+		t.Errorf("hash should be valid : %s", err.Error())
+	}
+
+	if parsed != validHash {
+		t.Error("error reading hash")
+	}
+
+	tooShortHash := "ca5ab459530e0e928155af72c8fafd74902d7469eff2224a6b3722b000"
+	reader = strings.NewReader(tooShortHash)
+
+	parsed, err = parseHash(reader)
+	if _, ok := err.(HashTooShort); !ok  || parsed != ""{
+		t.Errorf("hash is too short, it should not be valid : %s", err)
+	}
+
+	invalidHash := "ca.ab459/30e0e9281 5af72..faf 74902d7469eff2224a6b3722b000ff6cdb"
+	reader = strings.NewReader(invalidHash)
+
+	parsed, err = parseHash(reader)
+	if _, ok := err.(HashInvalid); !ok || parsed != "" {
+		t.Errorf("hash shoud be invalid : %s", err)
 	}
 }
