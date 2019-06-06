@@ -129,7 +129,7 @@ func (up httpUpload) parseHashToFileName(p *multipart.Part) (string, error) {
 }
 
 func sanitarizeString(toSanitarize string) string {
-	replacer := strings.NewReplacer("/", "", ".", "")
+	replacer := strings.NewReplacer("/", "", ".", "", " ", "")
 	return replacer.Replace(toSanitarize)
 }
 
