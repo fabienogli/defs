@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	s "supervisor/storage"
 	u "supervisor/utils"
@@ -31,11 +32,12 @@ func hashSHA256(fileName string) string {
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
+	limitInMbStr := os.Getenv("STORAGE_LIMIT")
+	limitInMb, _ := strconv.Atoi(limitInMbStr)
+	maxSizeInByte := int64(limitInMb * 1024 * 1024)
+	r.ParseMultipartForm(maxSizeInByte)
 
-	// TODO irindul 2019-06-04 : Read max size from env
-	r.ParseMultipartForm(3500 * 1024 * 1024) //3.5GB
 	filename := r.FormValue("filename")
-
 	if filename == "" {
 		u.RespondWithMsg(w, http.StatusUnprocessableEntity, "filename must be provided")
 		return
@@ -62,7 +64,12 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	for true {
 		response, err := lb.WhereTo(hash, int(fileHeader.Size))
 		if err != nil {
-			// TODO irindul 2019-06-04 : Handle LB connection error
+			if e, ok := err.(net.Error); ok && e.Timeout() {
+				u.RespondWithError(w, http.StatusGatewayTimeout, err)
+				return
+			}
+			u.RespondWithError(w, http.StatusInternalServerError, err)
+			return
 		}
 		baseUrl, err = getBaseUrl(response, w)
 		if err != nil {
@@ -70,6 +77,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 				hash = hashSHA256(filename)
 				continue
 			} else {
+				//Handled in getBaseUrl()
 				return
 			}
 		}
@@ -85,8 +93,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	// add a form file to the body
 	fileWriter, err := bodyWriter.CreateFormFile("file", fileHeader.Filename)
 	if err != nil {
-		// TODO irindul 2019-06-04 : err
-		log.Println("errror")
+		u.RespondWithError(w, http.StatusInternalServerError, err)
 		return
 	}
 	_, err = io.Copy(fileWriter, file)
@@ -140,6 +147,7 @@ func download(w http.ResponseWriter, r *http.Request) {
 
 	baseUrl, err := getBaseUrl(response, w)
 	if err != nil {
+		//Error handled in getBaseUrl()
 		return
 	}
 	url := baseUrl + "download/" + hash

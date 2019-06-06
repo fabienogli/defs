@@ -215,8 +215,11 @@ func download(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	_, _ = io.Copy(w, file)
-	// TODO irindul 2019-05-26 : Handle errors !
+	_, err = io.Copy(w, file)
+	if err != nil {
+		u.RespondWithError(w, http.StatusBadGateway, err)
+		return
+	}
 }
 
 func main() {
