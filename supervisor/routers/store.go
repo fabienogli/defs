@@ -24,14 +24,6 @@ func (HashErr) Error() string {
 	return "Hash already exists"
 }
 
-func (HashErr) Timeout() bool {
-	panic("implement me")
-}
-
-func (HashErr) Temporary() bool {
-	panic("implement me")
-}
-
 func hashSHA256(fileName string) string {
 	t := time.Now().String()
 	hash := sha256.Sum256([]byte(fileName + t))

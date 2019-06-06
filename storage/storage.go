@@ -40,12 +40,12 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	//Limit DoS by setting a limit to the body reading
 	//The 1024 added are for the content of the metadata, may be augmented if fitted but
 	//should be high enough.
-	limit := maxSizeInByte + 1024
+	limit := maxSizeInByte +  1024
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 
 	upload := httpUpload{
-		w:         w,
-		r:         r,
+		w: w,
+		r: r,
 		sizeLimit: maxSizeInByte,
 	}
 
@@ -107,7 +107,7 @@ func (up httpUpload) parseHashToFileName(p *multipart.Part) (string, error) {
 	hashSize := 64 //bytes
 	hash := make([]byte, hashSize)
 	n, err := p.Read(hash)
-	if err != nil && err != io.EOF {
+	if err != nil  && err != io.EOF {
 		u.RespondWithError(up.w, http.StatusUnprocessableEntity, err)
 		return "", err
 	}
@@ -167,6 +167,7 @@ func download(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fileName := vars["file"]
 
+
 	if fileName == "" {
 		u.RespondWithMsg(w, http.StatusBadRequest, "File was not specified")
 		return
@@ -187,6 +188,7 @@ func download(w http.ResponseWriter, r *http.Request) {
 		u.RespondWithError(w, http.StatusInternalServerError, err)
 
 	}
+
 
 	fileHeader := make([]byte, 512)
 
