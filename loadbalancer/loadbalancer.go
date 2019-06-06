@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
-	"loadbalancer/database"
+	"defs/loadbalancer/database"
 	"log"
 	"net"
 	"os"
@@ -18,18 +18,20 @@ type Query int
 const (
 	WhereTo Query = 0
 	WhereIs Query = 1
+	TTL		int = 60
 )
 
 func (q Query) String() string {
 	return fmt.Sprintf("%d", q)
 }
-
+//@TODO maybe change this to struct to do custom error
 type Response int
 const (
-	OK                  Response = 0
+	OK					Response = 0
 	HashAlreadyExisting Response = 1
 	NoStorageLeft       Response = 2
 	HashNotFound        Response = 3
+	MalformRequest      Response = 4
 )
 
 func (r Response) String() string {
@@ -179,23 +181,48 @@ func whereIs(hash string) (database.Storage, error) {
 //Get the best Storage for file
 func whereTo(hash string, size int) (database.Storage, Response) {
 	_, err := database.GetFile(hash, conn)
-	if err == nil {
+	if err != nil {
 		return database.Storage{}, HashAlreadyExisting
 	}
-	storages, err := database.GetStorages(conn)
-	min := uint(0)
-	i := 0
+	if size < 0 {
+		return database.Storage{}, MalformRequest
+	}
+	storage, resp := getLargestStorage(uint(size))
+	file, err := database.NewFile(hash, storage.ID, size)
+	err = tempStore(file)
+	if err != nil {
+		return database.Storage{}, MalformRequest
+	}
+	return storage, resp  
+}
+
+func getLargestStorage(size uint) (database.Storage, Response) {
+	storages, _ := database.GetStorages(conn)
+	var largest uint
+	var i = -1
 	for index, storage := range storages {
 		temp := storage.GetAvailableSpace()
-		if min < temp {
-			min = temp
+		if temp < size {
+			continue
+		}
+		if largest < temp {
+			largest = temp
 			i = index
 		}
 	}
-	if min != 0 && uint(size) < storages[0].GetAvailableSpace() {
+	if i >= 0 {
 		return storages[i], OK
 	}
 	return database.Storage{}, NoStorageLeft
+}
+
+func tempStore(file database.File) error {
+	err := file.Create(conn)
+	if err != nil {
+		return err
+	}
+	err = file.SetExp(TTL, conn)
+	return err
 }
 
 func delete(hash string) error {
@@ -208,8 +235,17 @@ func delete(hash string) error {
 }
 
 func store(hash string) error {
-	//@TODO need to set a TTL (60s) until tcp connection with storage
-	//file, err := database.GetFile(hash, conn)
+	file, err := database.GetFile(hash, conn)
+	if err != nil {
+		return err
+	}
+
+	//@TODO when tcp server operationnal: wait for connection
+	err = file.Persist(conn)
+	if err != nil {
+		return err
+	}
+	//@TODO if connection fail, delete file
 
 	return errors.New("Not implemented")
 }
@@ -229,7 +265,7 @@ func subscribe(dns string, used, total uint) (uint, error) {
 func unsubscribe(id uint) error {
 	storage, err := database.GetStorage(id, conn)
 	if err != nil {
-		return err //@TODO not sure of that
+		return err
 	}
 	err = storage.Delete(conn)
 	return err

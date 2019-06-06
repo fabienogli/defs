@@ -34,6 +34,40 @@ type Cud interface {
 	Delete(conn redis.Conn) error
 }
 
+//Negative int that could have produced integer overflow
+type ErrorConversion struct {
+	NegativeInt int
+}
+
+func (err ErrorConversion) Error() string {
+	return fmt.Sprintf("Negative number: %d", err.NegativeInt)
+}
+
+func NewFile(hash string, dns uint, size int) (File, error) {
+	if size < 0 {
+		return File{}, &ErrorConversion{NegativeInt: size}
+	}
+	return File{
+		Hash: hash, 
+		DNS: dns,
+		Size: uint(size),
+	}, nil
+}
+
+func NewStorage(dns string, used, total int) (Storage, error) {
+	if used < 0 {
+		return Storage{}, &ErrorConversion{NegativeInt: used}
+	}
+	if total < 0 {
+		return Storage{}, &ErrorConversion{NegativeInt: total}
+	}
+	return Storage{
+		DNS: dns, 
+		Used: uint(used),
+		Total: uint(total),
+	}, nil
+}
+
 func (storage Storage) GetAvailableSpace() uint {
 	return storage.Total - storage.Used
 }
@@ -212,6 +246,11 @@ func (file File) Save(conn redis.Conn) error {
 
 func (file File) SetExp(duration int, conn redis.Conn) error {
 	_, err := conn.Do("EXPIRE", FilePrefix + file.Hash, duration)
+	return err
+}
+
+func (file File) Persist(conn redis.Conn) error {
+	_, err := conn.Do("PERSIST", FilePrefix + file.Hash)
 	return err
 }
 
