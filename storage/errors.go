@@ -8,6 +8,8 @@ type HashTooShort error
 type HashNotFound error
 type BadRequest error
 type InternalError error
+type FileTooLarge error
+type CannotCreateFile error
 
 func NewHashInvalid() HashInvalid {
 	return HashInvalid(fmt.Errorf("hash is not valid"))
@@ -31,4 +33,12 @@ func NewBadRequest(msg string) BadRequest {
 
 func NewInternalError(msg string) InternalError {
 	return InternalError(fmt.Errorf(msg))
+}
+
+func NewCannotCreateFile(err error) CannotCreateFile {
+	return CannotCreateFile(err)
+}
+
+func NewFileTooLarge(err error) FileTooLarge {
+	return FileTooLarge(err)
 }

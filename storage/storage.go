@@ -134,10 +134,9 @@ func sanitarizeString(toSanitarize string) string {
 }
 
 func writeFileToDisk(path string, r io.Reader, sizeLimit int64) error{
-	// TODO irindul 2019-06-06 : Create Storage errors rather than InternalError (too generic)
 	tmpFile, err := os.Create(path)
 	if err != nil {
-		return NewInternalError(err.Error())
+		return NewCannotCreateFile(err)
 	}
 	defer tmpFile.Close()
 
@@ -153,8 +152,8 @@ func writeFileToDisk(path string, r io.Reader, sizeLimit int64) error{
 	//Somehow the file was bigger than expected
 	if written > sizeLimit {
 		log.Printf("file was removed : size (%d) too big (limit = %d)", written, sizeLimit)
-		os.Remove(tmpFile.Name())
-		return NewInternalError("file size over limit")
+		_ = os.Remove(tmpFile.Name())
+		return NewFileTooLarge(fmt.Errorf("expected max size %d, got %d", sizeLimit, written))
 	}
 
 	log.Println("succesfully created file in ", path)
