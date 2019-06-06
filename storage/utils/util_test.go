@@ -2,6 +2,9 @@ package utils
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -76,4 +79,44 @@ func TestRespondWithJSON(t *testing.T) {
 	if !bytes.Equal(expected, buf) {
 		t.Errorf("the data is not equal !")
 	}
+}
+
+func TestRespondWithError(t *testing.T) {
+	_ = os.Setenv("STORAGE_MODE", "development")
+	recorder := httptest.NewRecorder()
+
+	msg := "this is a sample error"
+	statusCode := http.StatusInternalServerError
+
+	RespondWithError(recorder, statusCode, fmt.Errorf(msg))
+	if recorder.Code != statusCode {
+		t.Errorf("status code should be %d, was %d", statusCode, recorder.Code)
+	}
+
+	unmarshalled := make(map[string]interface{})
+	err := json.Unmarshal(recorder.Body.Bytes(), &unmarshalled)
+	if err != nil {
+		t.Errorf("could not parse json : %s", err)
+	}
+	if unmarshalled["error"].(string) != msg {
+		t.Errorf("json payload should contain key \"error\" with value \"%s\"", msg)
+	}
+
+	_ = os.Setenv("STORAGE_MODE", "production")
+	recorder = httptest.NewRecorder()
+	RespondWithError(recorder, statusCode, fmt.Errorf(msg))
+	if recorder.Code != statusCode {
+		t.Errorf("status code should be %d, was %d", statusCode, recorder.Code)
+	}
+
+	unmarshalled = make(map[string]interface{})
+	err = json.Unmarshal(recorder.Body.Bytes(), &unmarshalled)
+	if err != nil {
+		t.Errorf("could not parse json : %s", err)
+	}
+	expectedMsg := http.StatusText(statusCode)
+	if unmarshalled["error"].(string) != expectedMsg {
+		t.Errorf("json payload should contain key \"error\" with value \"%s\"", expectedMsg)
+	}
+
 }
