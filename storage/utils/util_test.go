@@ -118,5 +118,4 @@ func TestRespondWithError(t *testing.T) {
 	if unmarshalled["error"].(string) != expectedMsg {
 		t.Errorf("json payload should contain key \"error\" with value \"%s\"", expectedMsg)
 	}
-
 }
