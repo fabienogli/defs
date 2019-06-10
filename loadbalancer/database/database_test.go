@@ -375,7 +375,7 @@ func TestExpFile(t *testing.T) {
 	ttl := 1 //seconds
 	err = file.SetExp(ttl, conn)
 	check(err, t)
-	duration := float32(ttl)+ 0.000001
+	duration := ttl + 1
 	time.Sleep(time.Duration(duration) * time.Second)
 	_, err = redis.String(conn.Do("GET", FilePrefix + key))
 	if err != redis.ErrNil {
