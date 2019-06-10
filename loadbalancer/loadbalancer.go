@@ -1,16 +1,17 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"loadbalancer/database"
+	"loadbalancer/server"
 	"log"
 	"net"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type Query int
@@ -40,17 +41,10 @@ func (r Response) String() string {
 
 var conn redis.Conn
 
-func getDatabase() *redis.Pool{
-	addr := os.Getenv("ROUTING_DB_ADDR")
-	sport := os.Getenv("ROUTING_DB_PORT")
-	port,_  := strconv.Atoi(sport)
-	return database.NewPool(addr, port)
-}
-
 func main() {
 	portStr := os.Getenv("LOADBALANCER_PORT")
-	pool := getDatabase()
-	conn := pool.Get()
+	pool := database.GetDatabase()
+	conn = pool.Get()
 	defer conn.Close()
 	if portStr == "" {
 		panic("Port wasn't found\n")
@@ -60,12 +54,26 @@ func main() {
 		log.Println(err)
 		panic(fmt.Sprintf("error converting port from string to int : %s", err.Error()))
 	}
-	startUdpServer([]byte{0, 0, 0, 0}, port)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go startUdpServer([]byte{0, 0, 0, 0}, port, &wg)
+	wg.Add(1)
+	go startTcpServer(port, &wg)
+	wg.Wait()
 }
 
-func startUdpServer(ip []byte, port int) {
+func startTcpServer(port int, group *sync.WaitGroup) {
+	defer group.Done()
+	err := server.StartTCP(port)
+	if err != nil {
+		log.Printf("Error while running tcp server %v", err)
+	}
+}
+
+func startUdpServer(ip []byte, port int, group *sync.WaitGroup) {
+	defer group.Done()
 	addr := ":" + strconv.Itoa(port)
-	log.Printf("Listening on %s\n", addr)
+	log.Printf("Udp server Listening on %s\n", addr)
 	serverConn, _ := net.ListenUDP(
 		"udp",
 		&net.UDPAddr{
@@ -222,51 +230,5 @@ func tempStore(file database.File) error {
 		return err
 	}
 	err = file.SetExp(TTL, conn)
-	return err
-}
-
-func delete(hash string) error {
-	file, err := database.GetFile(hash, conn)
-	if err != nil {
-		return err
-	}
-	err = file.Delete(conn)
-	return err
-}
-
-func store(hash string) error {
-	file, err := database.GetFile(hash, conn)
-	if err != nil {
-		return err
-	}
-
-	//@TODO when tcp server operationnal: wait for connection
-	err = file.Persist(conn)
-	if err != nil {
-		return err
-	}
-	//@TODO if connection fail, delete file
-
-	return errors.New("Not implemented")
-}
-
-//@TODO shouldn't be good to delete all file as well ?
-func subscribe(dns string, used, total uint) (uint, error) {
-	storage := database.Storage{
-		DNS:dns,
-		Used:used,
-		Total:total,
-	}
-	storage.GenerateUid(conn)
-	err := storage.Save(conn)
-	return storage.ID, err
-}
-
-func unsubscribe(id uint) error {
-	storage, err := database.GetStorage(id, conn)
-	if err != nil {
-		return err
-	}
-	err = storage.Delete(conn)
 	return err
 }

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"os"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -41,6 +42,13 @@ type ErrorConversion struct {
 
 func (err ErrorConversion) Error() string {
 	return fmt.Sprintf("Negative number: %d", err.NegativeInt)
+}
+
+func GetDatabase() *redis.Pool{
+	addr := os.Getenv("ROUTING_DB_ADDR")
+	sport := os.Getenv("ROUTING_DB_PORT")
+	port,_  := strconv.Atoi(sport)
+	return NewPool(addr, port)
 }
 
 func NewFile(hash string, dns uint, size int) (File, error) {
