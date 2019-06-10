@@ -101,10 +101,19 @@ func TestWriteFileToDisk(t *testing.T) {
 		t.Errorf("error writing file : %s",  err)
 	}
 
-	file, err := os.Open(getAbsDirectory() + filename)
+	path := getAbsDirectory() + filename
+	file, err := os.Open(path)
 	if err != nil {
 		t.Errorf("could not open file : %s", err)
 	}
+
+	//Deleting file when done
+	defer func() {
+		err := os.RemoveAll(path)
+		if err != nil {
+			t.Errorf("could not delete file !")
+		}
+	}()
 	defer file.Close()
 
 	fileReader := bufio.NewReader(file)
