@@ -2,7 +2,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"io"
+	"mime/multipart"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -131,5 +134,58 @@ func TestWriteFileToDisk(t *testing.T) {
 	content := string(buf[:n])
 	if content != fileContent {
 		t.Errorf("file read correctly but content was different, expected %s, got %s", fileContent, content)
+	}
+}
+
+func TestParseMultiPart(t *testing.T) {
+	body := &bytes.Buffer{}
+	bodyWriter := multipart.NewWriter(body)
+	hash := "8b656fc7d92aa7a479f1ff34e22ac1e75c56dc96fc376c0fa2546cca1e3f2409"
+	err := bodyWriter.WriteField("hash", hash)
+	if err != nil {
+		t.Errorf("could not write filed \"hash\" to body : %s", err)
+	}
+
+	fileWriter, err := bodyWriter.CreateFormFile("file", "random")
+	if err != nil {
+		t.Errorf("could not create form file : %s", err)
+	}
+
+	fileContent := []byte("test")
+
+	fileWriter.Write(fileContent)
+	bodyWriter.Close()
+
+	req, err := http.NewRequest(http.MethodGet, "", body)
+	req.Header.Set("Content-Type", bodyWriter.FormDataContentType())
+
+	if err != nil {
+		t.Errorf("could not create request : %s", err)
+		return
+	}
+	reader, err := req.MultipartReader()
+	if err != nil {
+		t.Errorf("could not craete multipart reader : %s", err)
+		return
+	}
+
+	p, filename, err := parseMultiPartForm(reader)
+	if err != nil {
+		t.Errorf("could not parse multipartform : %s", err)
+	}
+
+	if filename != hash {
+		t.Errorf("hash should have been parse : expected %s, got %s", hash, filename)
+	}
+
+	// TODO irindul 2019-06-10 : Refactor this with WriteFileToDisk, it tests the same shit
+	buf := make([]byte, len(fileContent))
+	n, err := p.Read(buf)
+	if err != nil && err != io.EOF{
+		t.Errorf("reader not correct : %s", err)
+	}
+
+	if n != len(fileContent) {
+		t.Errorf("size read not correct")
 	}
 }
