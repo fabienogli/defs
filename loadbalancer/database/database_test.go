@@ -45,6 +45,9 @@ func TestCreateStorage(t *testing.T) {
 	// Initiate connection
 	pool := getPool()
 	conn := pool.Get()
+	defer conn.Close()
+	defer conn.Do("FLUSHALL")
+
 	key := uint(1)
 	storage := getGoodStorage(key)
 	err := storage.Create(conn)
