@@ -12,6 +12,8 @@ import (
 	u "storage/utils"
 	"strconv"
 	"strings"
+	"storage/tcp"
+	"sync"
 )
 
 
@@ -259,13 +261,27 @@ func download(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	r := mux.NewRouter()
-	r.HandleFunc("/upload", uploadFile)
-	r.HandleFunc("/download/{file}", download).Methods("GET")
-	http.Handle("/", r)
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		r := mux.NewRouter()
+		r.HandleFunc("/upload", uploadFile)
+		r.HandleFunc("/download/{file}", download).Methods("GET")
+		http.Handle("/", r)
 
-	port := os.Getenv("STORAGE_PORT")
-	addr := ":" + port
-	log.Println("Listening on", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+		port := os.Getenv("STORAGE_PORT")
+		addr := ":" + port
+		log.Println("Listening on", addr)
+		log.Fatal(http.ListenAndServe(addr, nil))
+
+	}()
+
+	go func() {
+		defer wg.Done()
+		tcp.Subscribe()
+	}()
+
+
+	wg.Wait()
 }
