@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bufio"
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -73,5 +76,51 @@ func TestParseHash(t *testing.T) {
 	parsed, err = parseHash(reader)
 	if _, ok := err.(HashInvalid); !ok || parsed != "" {
 		t.Errorf("hash shoud be invalid : %s", err)
+	}
+}
+
+func TestGetAbsDirectory(t *testing.T) {
+	expected := os.Getenv("STORAGE_DIR")
+	path := getAbsDirectory()
+	if path != expected {
+		t.Errorf("The path should be %s, was %s", expected, path)
+	}
+
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Errorf("The folder should have been created")
+	}
+}
+
+func TestWriteFileToDisk(t *testing.T) {
+	filename := "test"
+	fileContent := "this is a file containing all of this text yeaaaah!"
+	reader := strings.NewReader(fileContent)
+
+	err := writeFileToDisk(filename, reader, 1000)
+	if err != nil {
+		t.Errorf("error writing file : %s",  err)
+	}
+
+	file, err := os.Open(getAbsDirectory() + filename)
+	if err != nil {
+		t.Errorf("could not open file : %s", err)
+	}
+	defer file.Close()
+
+	fileReader := bufio.NewReader(file)
+	buf := make([]byte, len([]byte(fileContent)))
+	n ,err := fileReader.Read(buf)
+
+	if err != nil && err != io.EOF {
+		t.Errorf("could not read file : %s", err)
+	}
+
+	if n != len(buf) {
+		t.Errorf("didn't read enough lines, expected %d, got %d", len(buf), n)
+	}
+
+	content := string(buf[:n])
+	if content != fileContent {
+		t.Errorf("file read correctly but content was different, expected %s, got %s", fileContent, content)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	u "storage/utils"
@@ -19,16 +20,10 @@ var downloadDir string
 func getAbsDirectory() string {
 	path := os.Getenv("STORAGE_DIR")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		os.MkdirAll(path, 0600)
+		_ = os.MkdirAll(path, 0600)
 	}
 
 	return path
-}
-
-type httpUpload struct {
-	w         http.ResponseWriter
-	r         *http.Request
-	sizeLimit int64
 }
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
@@ -43,13 +38,11 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	limit := maxSizeInByte +  1024
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 
-	upload := httpUpload{
-		w: w,
-		r: r,
-		sizeLimit: maxSizeInByte,
+	reader, err := r.MultipartReader()
+	if err != nil {
+		u.RespondWithError(w, http.StatusBadRequest, err)
 	}
-
-	err := upload.parseMultiPartForm()
+	p, filename, err := parseMultiPartForm(reader)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		msg := err.Error()
@@ -66,43 +59,40 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//Creating file on hard drive
+	err = writeFileToDisk(filename, p, limit)
+	// TODO irindul 2019-06-10 : Handle file error
+
+
 	u.RespondWithMsg(w, 200, "file uploaded successfully")
 }
 
-func (up httpUpload) parseMultiPartForm() error {
-	reader, err := up.r.MultipartReader()
-	if err != nil {
-		return NewBadRequest(err.Error())
-	}
-
+func parseMultiPartForm(reader *multipart.Reader) ( io.Reader,  string,  error){
 	p, err := reader.NextPart()
 	if err != nil {
-		return NewInternalError(err.Error())
+		return nil, "", NewInternalError(err.Error())
 	}
 
 	if p.FormName() != "hash" {
-		return NewHashNotFound()
+		return nil, "", NewHashNotFound()
 	}
 
 	fileName, err := parseHash(p)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 
 	// parse file field
 	p, err = reader.NextPart()
 	if err != nil {
-		return NewInternalError(err.Error())
+		return nil, "", NewInternalError(err.Error())
 	}
 
 	if p.FormName() != "file" {
-		return NewBadRequest("file is expected")
+		return nil, "", NewBadRequest("file is expected")
 	}
 
-	//Creating file on hard drive
-	dir := getAbsDirectory()
-	path := dir + fileName
-	return writeFileToDisk(path, p, up.sizeLimit)
+	return p, fileName, nil
 }
 
 func parseHash(r io.Reader) (string, error) {
@@ -133,7 +123,10 @@ func sanitarizeString(toSanitarize string) string {
 	return replacer.Replace(toSanitarize)
 }
 
-func writeFileToDisk(path string, r io.Reader, sizeLimit int64) error{
+func writeFileToDisk(filename string, r io.Reader, sizeLimit int64) error{
+	dir := getAbsDirectory()
+	path := dir + filename
+
 	tmpFile, err := os.Create(path)
 	if err != nil {
 		return NewCannotCreateFile(err)
