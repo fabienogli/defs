@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
-	"defs/loadbalancer/database"
+	"loadbalancer/database"
 	"log"
 	"net"
 	"os"
