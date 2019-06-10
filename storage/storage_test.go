@@ -119,21 +119,30 @@ func TestWriteFileToDisk(t *testing.T) {
 	}()
 	defer file.Close()
 
-	fileReader := bufio.NewReader(file)
-	buf := make([]byte, len([]byte(fileContent)))
+	testFileContent(t, []byte(fileContent), file)
+}
+
+func testFileContent(t *testing.T, expected []byte, reader io.Reader) {
+	fileReader := bufio.NewReader(reader)
+	buf := make([]byte, len(expected))
 	n ,err := fileReader.Read(buf)
 
 	if err != nil && err != io.EOF {
 		t.Errorf("could not read file : %s", err)
+		return
 	}
 
 	if n != len(buf) {
 		t.Errorf("didn't read enough lines, expected %d, got %d", len(buf), n)
+		return
 	}
 
-	content := string(buf[:n])
-	if content != fileContent {
-		t.Errorf("file read correctly but content was different, expected %s, got %s", fileContent, content)
+	content := buf[:n]
+
+	for i, val := range content {
+		if buf[i] != val {
+			t.Errorf("file read correctly but byte %d was different, expected %b, got %b", i, buf[i], val)
+		}
 	}
 }
 
@@ -178,14 +187,5 @@ func TestParseMultiPart(t *testing.T) {
 		t.Errorf("hash should have been parse : expected %s, got %s", hash, filename)
 	}
 
-	// TODO irindul 2019-06-10 : Refactor this with WriteFileToDisk, it tests the same shit
-	buf := make([]byte, len(fileContent))
-	n, err := p.Read(buf)
-	if err != nil && err != io.EOF{
-		t.Errorf("reader not correct : %s", err)
-	}
-
-	if n != len(fileContent) {
-		t.Errorf("size read not correct")
-	}
+	testFileContent(t, fileContent, p)
 }
