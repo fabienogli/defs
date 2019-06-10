@@ -102,7 +102,6 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	// send request
 	client := &http.Client{Timeout: time.Second * 10}
 	req, err := http.NewRequest(http.MethodGet, url, body)
-
 	req.Header.Set("Content-Type", bodyWriter.FormDataContentType())
 
 	resp, err := client.Do(req)
