@@ -43,6 +43,8 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ttl := r.FormValue("ttl")
+
 	file, fileHeader, err := r.FormFile("file")
 	if err != nil {
 		u.RespondWithMsg(w, http.StatusUnprocessableEntity, "file must be provided")
@@ -89,6 +91,9 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	bodyWriter := multipart.NewWriter(body)
 
 	bodyWriter.WriteField("hash", hash)
+	if ttl != "" {
+		bodyWriter.WriteField("ttl", ttl)
+	}
 
 	// add a form file to the body
 	fileWriter, err := bodyWriter.CreateFormFile("file", fileHeader.Filename)
