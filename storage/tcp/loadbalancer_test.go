@@ -8,7 +8,7 @@ import (
 
 func TestWriteQuery(t *testing.T) {
 	expected := "0 arg1 arg2 34"
-	output := writeQuery(SubscribeNew, "arg1", "arg2", "34")
+	output := craftQuery(SubscribeNew, "arg1", "arg2", "34")
 	if output != expected {
 		t.Errorf("expected %s, got %s", expected, output)
 	}
@@ -30,7 +30,10 @@ func TestGetId(t *testing.T) {
 
 	file.Close()
 
-	os.RemoveAll(os.Getenv("STORAGE_ID_FILE"))
+	err := os.RemoveAll(os.Getenv("STORAGE_ID_FILE"))
+	if err != nil {
+		t.Errorf("could not delete storage file : %s", err)
+	}
 
 	expected = ""
 	id = GetId()
@@ -86,6 +89,7 @@ func cleanUpBackup() {
 	backupPath := path + ".bck"
 	//If there is a backup file
 	if _, err := os.Stat(backupPath); !os.IsNotExist(err) {
+
 		file, err := os.Create(path)
 		if err != nil {
 			panic("could not create file")

@@ -47,14 +47,15 @@ func GetId() string {
 
 func Subscribe() {
 	id := GetId()
-
 	addr := GetTCPAddr()
-	conn, err := net.Dial("tcp", addr)
-	if err != nil {
-		log.Panicf("could not dial loadbalancer : %s", err)
+	var conn net.Conn
+	var err error
+	for {
+		conn, err = net.Dial("tcp", addr)
+		if err == nil {
+			break
+		}
 	}
-
-
 	if id == "" {
 		SubscibeWithoutId(conn)
 	} else {
@@ -67,13 +68,13 @@ func SubscribeWithId(id string, conn net.Conn) {
 }
 
 func SubscibeWithoutId(conn net.Conn) {
-	defer conn.Close()
+	//defer conn.Close()
 	myDns := os.Getenv("STORAGE_DNS")
 	totalSpace := os.Getenv("STORAGE_SPACE")
 	usedSpace := fmt.Sprintf("%d", GetUsedSpace())
-	log.Println(myDns)
-	log.Println(totalSpace)
-	query := writeQuery(SubscribeNew, myDns, usedSpace, totalSpace)
+
+	query := craftQuery(SubscribeNew, myDns, usedSpace, totalSpace)
+	log.Println(query)
 
 	buf := []byte(query)
 	n, err := conn.Write(buf)
@@ -112,9 +113,6 @@ func GetUsedSpace() int64 {
 	return size
 }
 
-func writeQuery(code LoadBalancerCode, args ...string) string {
-	sb := strings.Builder{}
-	sb.WriteString(fmt.Sprintf("%d ", code))
-	sb.WriteString(strings.Join(args, " "))
-	return sb.String()
+func craftQuery(code LoadBalancerCode, args ...string) string {
+	return fmt.Sprintf("%d %s", code, strings.Join(args, " "))
 }
