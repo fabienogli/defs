@@ -11,6 +11,7 @@ ENV GO111MODULE on
 RUN go mod download
 #For HotReloading
 RUN ["go", "get", "github.com/githubnemo/CompileDaemon"]
+RUN apt-get update && apt-get install at
 
 FROM scratch
 

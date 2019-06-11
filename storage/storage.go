@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"github.com/gorilla/mux"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	u "storage/utils"
 	"strconv"
 	"strings"
@@ -26,7 +28,6 @@ func getAbsDirectory() string {
 }
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.Header)
 	limitInMbStr := os.Getenv("STORAGE_LIMIT")
 	limitInMb, _ := strconv.Atoi(limitInMbStr)
 	maxSizeInByte := int64(limitInMb * 1024 * 1024)
@@ -37,7 +38,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	limit := maxSizeInByte +  1024
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	r.ParseMultipartForm(maxSizeInByte)
-	filename, _, err := parseMultiPartForm(r)
+	filename, ttl, err := parseMultiPartForm(r)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		msg := err.Error()
@@ -65,10 +66,51 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		switch err.(type) {
 		case CannotCreateFile:
 			u.RespondWithError(w, http.StatusInternalServerError, err)
+			return
 		}
 	}
 
+	err = setTTL(ttl, filename)
+	if err != nil {
+		u.RespondWithError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	u.RespondWithMsg(w, 200, "file uploaded successfully")
+}
+
+func setTTL(ttl string, hash string) error{
+	echo := exec.Command("echo", fmt.Sprintf("'rm %s%s'", getAbsDirectory(), hash))
+	at := exec.Command("at", fmt.Sprintf("now + %s", ttl))
+	r, w := io.Pipe()
+
+	echo.Stdout = w
+	at.Stdin = r
+
+	err := echo.Start()
+	if err != nil {
+		return NewInternalError(err.Error())
+	}
+
+	err = at.Start()
+	if err != nil {
+		return NewInternalError(err.Error())
+	}
+
+	if err != nil {
+		return NewInternalError(err.Error())
+	}
+	err = w.Close()
+	if err != nil {
+		return NewInternalError(err.Error())
+	}
+
+	go func() {
+		at.Wait()
+		io.Copy(os.Stdout, &b2)
+	}()
+
+	return nil
 }
 
 func parseMultiPartForm(r *http.Request) (filename string, ttl string,  err error){
@@ -87,7 +129,7 @@ func parseMultiPartForm(r *http.Request) (filename string, ttl string,  err erro
 	ttl = r.FormValue("ttl")
 	if ttl == "" {
 		//default ttl
-		ttl = "1d"
+		ttl = "1 minute"
 	}
 
 	return filename, ttl, nil
