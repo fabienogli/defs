@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"os"
 	"github.com/gomodule/redigo/redis"
+	"os"
 )
 
 const (
@@ -100,10 +100,6 @@ func NewPool(address string, port int) *redis.Pool {
 }
 
 func (storage *Storage)  GenerateUid(conn redis.Conn) {
-	if storage.ID == 0 {
-		storage.ID = 1
-		return
-	}
 	tmp, _ := redis.Strings(conn.Do("KEYS", StoragePrefix+"*"))
 	storage.ID = uint(len(tmp) + 1)
 }
