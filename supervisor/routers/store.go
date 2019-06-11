@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
 	"io"
@@ -92,6 +93,11 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
 	bodyWriter.WriteField("hash", hash)
 	if ttl != "" {
+		err = ParseTTL(ttl)
+		if err != nil {
+			u.RespondWithMsg(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
 		bodyWriter.WriteField("ttl", ttl)
 	}
 
@@ -128,6 +134,58 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
 }
+
+func ParseTTL(ttl string) error {
+	splitted := strings.Split(ttl, " ")
+	if len(splitted) != 2 {
+		return fmt.Errorf("TTL is not good format it should be 'number unit', i.e %d %s", 1, "day")
+	}
+
+	n, err := strconv.Atoi(splitted[0])
+	numberToWait := uint64(n)
+	if err != nil {
+		return errors.New("the first part of TTL must be a number")
+	}
+
+	authorizedUnits := []string{"minute", "hour", "day"}
+	unitWithMaxTime := GetUnitWithMaxTime(authorizedUnits, 7)
+
+	unit := splitted[1]
+	if max, ok := unitWithMaxTime[unit]; ok {
+		if numberToWait > max {
+			return fmt.Errorf("maximum TTL is 7 days")
+		}
+	} else {
+		return fmt.Errorf("unit is not allowed, it must be one of [%s]", strings.Join(authorizedUnits, ", "))
+	}
+
+	return nil
+}
+
+func GetUnitWithMaxTime(authorizedUnits []string, maxInDays uint64) map[string]uint64 {
+	unitWithMaxTime := make(map[string]uint64)
+	for _, unit := range authorizedUnits {
+		unitWithMaxTime[unit] = 1 //Max of one for singulars
+		plural := unit + "s"
+		unitWithMaxTime[plural] = convertUnitInDays(plural, maxInDays)
+	}
+	return unitWithMaxTime
+}
+
+func convertUnitInDays(plural string, maxInDays uint64) uint64 {
+	switch plural {
+	case "days":
+		return maxInDays
+	case "hours":
+		return maxInDays * 24
+	case "minutes":
+		return maxInDays * 24 * 60
+	default:
+		return 0
+	}
+}
+
+
 
 func download(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
