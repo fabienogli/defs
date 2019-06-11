@@ -55,23 +55,26 @@ func main() {
 		panic(fmt.Sprintf("error converting port from string to int : %s", err.Error()))
 	}
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go startUdpServer([]byte{0, 0, 0, 0}, port, &wg)
-	wg.Add(1)
-	go startTcpServer(port, &wg)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		startUdpServer([]byte{0, 0, 0, 0}, port)
+	}()
+	go func() {
+		defer wg.Done()
+		startTcpServer(port)
+	}()
 	wg.Wait()
 }
 
-func startTcpServer(port int, group *sync.WaitGroup) {
-	defer group.Done()
+func startTcpServer(port int) {
 	err := server.StartTCP(port)
 	if err != nil {
 		log.Printf("Error while running tcp server %v", err)
 	}
 }
 
-func startUdpServer(ip []byte, port int, group *sync.WaitGroup) {
-	defer group.Done()
+func startUdpServer(ip []byte, port int) {
 	addr := ":" + strconv.Itoa(port)
 	log.Printf("Udp server Listening on %s\n", addr)
 	serverConn, _ := net.ListenUDP(
