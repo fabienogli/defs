@@ -87,11 +87,7 @@ func handleConnection(c net.Conn) {
 		_, _ = c.Write([]byte(string(UnknownStorage)))
 		return
 	}
-	resp := handleRequest(Query(args[0]), args[1:], c)
-	_, err = c.Write([]byte(resp))
-	if err != nil {
-		log.Printf("Error while writing response %v", err)
-	}
+	handleRequest(Query(args[0]), args[1:], c)
 }
 
 type NotEnoughArgument uint
@@ -127,11 +123,12 @@ func processSubcribeExisting(args []string) (Args, error) {
 	if len(args) < 4 {
 		return processed, NotEnoughArgument(4)
 	}
-	id, err := stringToUint(args[0])
+	var err error
+	processed.ID, err = stringToUint(args[0])
 	if err != nil {
 		return processed, ConversionError("ID")
 	}
-	dns := args[1]
+	processed.DNS = args[1]
 	processed.UsedSpace, err = stringToUint(args[2])
 	if err != nil {
 		return processed, ConversionError("USED Space")
@@ -162,66 +159,79 @@ func processFileOperation(args []string) (Args, error) {
 	return processed, nil
 }
 
+func write(msg Response, c net.Conn) {
+	_, err := c.Write([]byte(msg))
+	if err != nil {
+		log.Printf("Error while writing %v", err)
+	}
+}
 
-func handleRequest(query Query, args []string, c net.Conn) string {
-	var resp = string(InternalError)
+func handleRequest(query Query, args []string, c net.Conn) {
 	switch query {
 	case SubscribeNew:
-		//process args
-		if len(args) < 3 {
-			return resp
-		}
-		dns := args[0]
-		totalSpace, err := stringToUint(args[2])
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return resp
-		}
-		UsedSpace, err := stringToUint(args[1])
-		if err != nil {
-			return resp
-		}
-		id, response := subscribeNew(dns, UsedSpace, totalSpace)
-		resp = fmt.Sprintf("%s %s %d", response, ArgsDelimiter, id)
+		handleSubscribeNew(query, args, c)
 	case SubscribeExisting:
-		if len(args) < 4 {
-			return resp
-		}
-		id, err := stringToUint(args[0])
-		dns := args[1]
-		UsedSpace, err := stringToUint(args[2])
-		if err != nil {
-			return resp
-		}
-		totalSpace, err := stringToUint(args[3])
-		if err == nil {
-			resp = fmt.Sprintf("%s", subscribeExisting(id, dns, UsedSpace, totalSpace))
-		}
+		handleSubscribeExisting(query, args, c)
 	case Unsub:
-		id, err := stringToUint(args[0])
-		if err != nil {
-			return string(InternalError)
-		}
-		resp = string(unsubscribe(id))
+		handleUnsubscribe(query, args, c)
 	case Store:
-		if len(args) < 1 {
-			log.Printf("WTF")
-			return resp
-		}
-		fileName := args[0]
-		if err := store(fileName, c); err == nil {
-			resp = string(Ok)
-		} else {
-			log.Printf("Error while storing: %v", err)
-		}
+		handleStore(query, args, c)
 	case Delete:
-		if len(args) < 1 {
-			return resp
-		}
-		filename := args[0]
-		resp = string(delete(filename))
+		handleDelete(query, args, c)
 	}
-	return resp
+}
+
+
+func handleSubscribeNew(query Query, args []string, c net.Conn) {
+	arg, err := processSubcribeNew(args)
+	if err == nil {
+		write(subscribeNew(arg.DNS, arg.UsedSpace, arg.TotalSpace), c)
+		return
+	}
+	log.Printf("Error happened: %v", err)
+	write(InternalError, c)
+}
+
+func handleSubscribeExisting(query Query, args []string, c net.Conn) {
+	arg, err := processSubcribeExisting(args)
+	if err == nil {
+		write(subscribeExisting(arg.ID, arg.DNS, arg.UsedSpace, arg.TotalSpace), c)
+		return
+	}
+	log.Printf("Error happened: %v", err)
+	write(InternalError, c)
+}
+
+func handleUnsubscribe(query Query, args []string, c net.Conn) {
+	arg, err := processUnsubscribe(args)
+	if err == nil {
+		write(unsubscribe(arg.ID), c)
+		return
+	}
+	log.Printf("Error happened: %v", err)
+	write(InternalError, c)
+
+}
+
+func handleStore(query Query, args []string, c net.Conn) {
+	arg, err := processFileOperation(args)
+	if err == nil {
+		err = store(arg.FileName, c)
+		if err != nil {
+			log.Printf("Error while storing file: %v", err)
+		}
+	}
+	log.Printf("Error %v", err)
+	write(InternalError, c)
+}
+
+func handleDelete(query Query, args []string, c net.Conn) {
+	arg, err := processFileOperation(args)
+	if err == nil {
+		write(delete(arg.FileName), c)
+		return
+	}
+	write(InternalError, c)
 }
 
 func stringToUint(id string) (uint, error) {
@@ -275,7 +285,7 @@ func store(hash string, c net.Conn) error {
 }
 
 //@TODO shouldn't be good to delete all file as well ?
-func subscribeNew(dns string, used, total uint) (uint, Response) {
+func subscribeNew(dns string, used, total uint) Response {
 	storage := database.Storage{
 		DNS:   dns,
 		Used:  used,
@@ -285,9 +295,9 @@ func subscribeNew(dns string, used, total uint) (uint, Response) {
 	err := storage.Create(conn)
 	if err != nil {
 		log.Printf("Error while creating storage: %v\nstorage: %v", err, storage)
-		return 0, InternalError
+		return InternalError
 	}
-	return storage.ID, Ok
+	return Response(fmt.Sprintf("%s%s%s", Ok, ArgsDelimiter, storage.ID))
 }
 
 func subscribeExisting(id uint, dns string, used, total uint) Response {
