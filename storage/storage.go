@@ -72,6 +72,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 
 	err = setTTL(ttl, filename)
 	if err != nil {
+		DeleteFile(filename)
 		u.RespondWithError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -79,29 +80,40 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	u.RespondWithMsg(w, 200, "file uploaded successfully")
 }
 
+func DeleteFile(filename string) {
+	err := os.RemoveAll(filename)
+	if err != nil {
+		log.Panicf("could not delete file %s : %s", filename, err)
+	}
+}
+
 func setTTL(ttl string, hash string) error{
 	echo := exec.Command("echo", fmt.Sprintf("rm %s%s", getAbsDirectory(), hash))
 	at := exec.Command("at", fmt.Sprintf("now + %s", ttl))
 	r, w := io.Pipe()
 
-
 	echo.Stdout = w
 	at.Stdin = r
 
-	var b1 bytes.Buffer
-	var b2 bytes.Buffer
-	at.Stdout = &b1
-	at.Stderr = &b2
+	err := echo.Start()
+	if err != nil {
+		return err
+	}
+	err = at.Start()
+	if err != nil {
+		return err
+	}
+	err = echo.Wait()
+	if err != nil {
+		return err
+	}
 
-
-	echo.Start()
-	at.Start()
-	echo.Wait()
 	w.Close()
-	at.Wait()
-	io.Copy(os.Stdout, &b2)
-	io.Copy(os.Stdout, &b1)
-
+	err = at.Wait()
+	r.Close()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -121,8 +133,8 @@ func parseMultiPartForm(r *http.Request) (filename string, ttl string,  err erro
 
 	ttl = r.FormValue("ttl")
 	if ttl == "" {
-		//default ttl
-		ttl = "1 minute"
+		//default ttl to one day
+		ttl = "1 day"
 	}
 
 	return filename, ttl, nil
