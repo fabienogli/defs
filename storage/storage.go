@@ -80,35 +80,28 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func setTTL(ttl string, hash string) error{
-	echo := exec.Command("echo", fmt.Sprintf("'rm %s%s'", getAbsDirectory(), hash))
+	echo := exec.Command("echo", fmt.Sprintf("rm %s%s", getAbsDirectory(), hash))
 	at := exec.Command("at", fmt.Sprintf("now + %s", ttl))
 	r, w := io.Pipe()
+
 
 	echo.Stdout = w
 	at.Stdin = r
 
-	err := echo.Start()
-	if err != nil {
-		return NewInternalError(err.Error())
-	}
+	var b1 bytes.Buffer
+	var b2 bytes.Buffer
+	at.Stdout = &b1
+	at.Stderr = &b2
 
-	err = at.Start()
-	if err != nil {
-		return NewInternalError(err.Error())
-	}
 
-	if err != nil {
-		return NewInternalError(err.Error())
-	}
-	err = w.Close()
-	if err != nil {
-		return NewInternalError(err.Error())
-	}
+	echo.Start()
+	at.Start()
+	echo.Wait()
+	w.Close()
+	at.Wait()
+	io.Copy(os.Stdout, &b2)
+	io.Copy(os.Stdout, &b1)
 
-	go func() {
-		at.Wait()
-		io.Copy(os.Stdout, &b2)
-	}()
 
 	return nil
 }

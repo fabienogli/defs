@@ -12,6 +12,8 @@ RUN go mod download
 #For HotReloading
 RUN ["go", "get", "github.com/githubnemo/CompileDaemon"]
 RUN apt-get update && apt-get install at
+RUN /etc/init.d/atd start
+
 
 FROM scratch
 
