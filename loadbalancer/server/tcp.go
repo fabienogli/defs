@@ -94,9 +94,7 @@ func handleRequest(query Query, args []string) string {
 			return resp
 		}
 		id, response := subscribeNew(args[0], UsedSpace, totalSpace)
-		stringId := uintToString(id)
-		resp = string(response)+ ArgsDelimiter + stringId
-		break
+		resp = fmt.Sprintf("%s %s %d", response, ArgsDelimiter, id)
 	case SubscribeExisting:
 		UsedSpace, err := stringToUint(args[2])
 		if err != nil {
@@ -108,10 +106,8 @@ func handleRequest(query Query, args []string) string {
 		}
 		id, err := stringToUint(args[0])
 		if err == nil {
-			response := subscribeExisting(id, args[0], UsedSpace, totalSpace)
-			resp = string(response)
+			resp = fmt.Sprintf("%s", subscribeExisting(id, args[0], UsedSpace, totalSpace))
 		}
-		break
 	case Unsub:
 		id, err := stringToUint(args[0])
 		if err != nil {
@@ -121,7 +117,6 @@ func handleRequest(query Query, args []string) string {
 		if err == nil {
 			resp = string(Ok)
 		}
-		break
 	case Store:
 		err := store(args[0])
 		if err == nil {
