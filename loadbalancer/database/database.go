@@ -99,8 +99,9 @@ func NewPool(address string, port int) *redis.Pool {
 	}
 }
 
-func (storage Storage)  GenerateUid(conn redis.Conn) {
+func (storage *Storage)  GenerateUid(conn redis.Conn) {
 	if storage.ID == 0 {
+		storage.ID = 1
 		return
 	}
 	tmp, _ := redis.Strings(conn.Do("KEYS", StoragePrefix+"*"))

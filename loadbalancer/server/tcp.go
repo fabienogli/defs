@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"loadbalancer/database"
-	"errors"
 	"log"
 	"math/rand"
 	"net"
@@ -23,21 +22,30 @@ const (
 	Unsub             Query = "2"
 	Store             Query = "3"
 	Delete            Query = "4"
+	DoneStoring       Query = "5"
+	TTL               int   = 60
 
 	Ok                 Response = "0"
 	StorageNonExistent Response = "1"
 	NotSameUsedSpace   Response = "2"
-	UnknownStorage     Response = "2"
+	UnknownStorage     Response = "3"
+	UnknownFile        Response = "4"
 	InternalError      Response = "666"
 
-	CmdDelimiter byte = '\n'
+	CmdDelimiter  byte   = '\n'
 	ArgsDelimiter string = " "
-
 )
 
-var conn redis.Conn
+type Args struct {
+	ID uint
+	FileName string
+	StoreName string
+	DNS string
+	UsedSpace uint
+	TotalSpace uint
+}
 
-var ErrorConversion error
+var conn redis.Conn
 
 func StartTCP(port int) error {
 	pool := database.GetDatabase()
@@ -60,73 +68,158 @@ func StartTCP(port int) error {
 	}
 }
 
-
 func handleConnection(c net.Conn) {
-	fmt.Printf("Serving %s\n", c.RemoteAddr().String())
+	defer c.Close()
+
+	//Read data
 	netData, err := bufio.NewReader(c).ReadString(CmdDelimiter)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Error while reading %v", err)
 		return
 	}
 
-	//process cmd
+	//Process cmd
+	netData = strings.Trim(netData, "\n")
 	args := strings.Split(netData, ArgsDelimiter)
-	code, err := strconv.Atoi(args[0])
+	_, err = strconv.Atoi(args[0])
 	if err != nil {
 		log.Printf("Error converting string to integer %s ", args[0])
 		_, _ = c.Write([]byte(string(UnknownStorage)))
+		return
 	}
-	query := Query(code)
-	handleRequest(query, args[1:])
-	_ = c.Close()
+	resp := handleRequest(Query(args[0]), args[1:], c)
+	_, err = c.Write([]byte(resp))
+	if err != nil {
+		log.Printf("Error while writing response %v", err)
+	}
 }
 
-func handleRequest(query Query, args []string) string {
-	var resp string = string(InternalError)
+type NotEnoughArgument uint
+type ConversionError string
+
+func (n NotEnoughArgument) Error() string {
+	return fmt.Sprintf("Not Enough Argument : %d", n)
+}
+func (c ConversionError) Error() string {
+	return fmt.Sprintf("Error converting %s", c)
+}
+
+func processSubcribeNew(args []string) (Args, error) {
+	var processed = Args{}
+	if len(args) < 3 {
+		return processed, NotEnoughArgument(3)
+	}
+	processed.DNS = args[0]
+	var err error
+	processed.TotalSpace, err = stringToUint(args[2])
+	if err != nil {
+		return processed, ConversionError("Total Space")
+	}
+	processed.UsedSpace, err = stringToUint(args[1])
+	if err != nil {
+		return processed, ConversionError("Used Space")
+	}
+	return processed, nil
+}
+
+func processSubcribeExisting(args []string) (Args, error) {
+	var processed = Args{}
+	if len(args) < 4 {
+		return processed, NotEnoughArgument(4)
+	}
+	id, err := stringToUint(args[0])
+	if err != nil {
+		return processed, ConversionError("ID")
+	}
+	dns := args[1]
+	processed.UsedSpace, err = stringToUint(args[2])
+	if err != nil {
+		return processed, ConversionError("USED Space")
+	}
+	processed.TotalSpace, err = stringToUint(args[3])
+	if err != nil {
+		return processed, ConversionError("Total Space")
+	}
+	return processed, nil
+}
+
+func processUnsubscribe(args []string) (Args, error) {
+	var processed = Args{}
+	id, err := stringToUint(args[0])
+	if err != nil {
+		return processed, ConversionError("ID")
+	}
+	processed.ID = id
+	return processed, nil
+}
+
+func processFileOperation(args []string) (Args, error) {
+	var processed = Args{}
+	if len(args) < 1 {
+		return processed, NotEnoughArgument(1)
+	}
+	processed.FileName = args[0]
+	return processed, nil
+}
+
+
+func handleRequest(query Query, args []string, c net.Conn) string {
+	var resp = string(InternalError)
 	switch query {
 	case SubscribeNew:
+		//process args
+		if len(args) < 3 {
+			return resp
+		}
+		dns := args[0]
 		totalSpace, err := stringToUint(args[2])
 		if err != nil {
+			log.Printf("Error: %v", err)
 			return resp
 		}
 		UsedSpace, err := stringToUint(args[1])
 		if err != nil {
 			return resp
 		}
-		id, response := subscribeNew(args[0], UsedSpace, totalSpace)
+		id, response := subscribeNew(dns, UsedSpace, totalSpace)
 		resp = fmt.Sprintf("%s %s %d", response, ArgsDelimiter, id)
 	case SubscribeExisting:
+		if len(args) < 4 {
+			return resp
+		}
+		id, err := stringToUint(args[0])
+		dns := args[1]
 		UsedSpace, err := stringToUint(args[2])
 		if err != nil {
 			return resp
 		}
 		totalSpace, err := stringToUint(args[3])
-		if err != nil {
-			return resp
-		}
-		id, err := stringToUint(args[0])
 		if err == nil {
-			resp = fmt.Sprintf("%s", subscribeExisting(id, args[0], UsedSpace, totalSpace))
+			resp = fmt.Sprintf("%s", subscribeExisting(id, dns, UsedSpace, totalSpace))
 		}
 	case Unsub:
 		id, err := stringToUint(args[0])
 		if err != nil {
 			return string(InternalError)
 		}
-		err = unsubscribe(id)
-		if err == nil {
-			resp = string(Ok)
-		}
+		resp = string(unsubscribe(id))
 	case Store:
-		err := store(args[0])
-		if err == nil {
+		if len(args) < 1 {
+			log.Printf("WTF")
+			return resp
+		}
+		fileName := args[0]
+		if err := store(fileName, c); err == nil {
 			resp = string(Ok)
+		} else {
+			log.Printf("Error while storing: %v", err)
 		}
 	case Delete:
-		err := delete(args[0])
-		if err == nil {
-			resp = string(Ok)
+		if len(args) < 1 {
+			return resp
 		}
+		filename := args[0]
+		resp = string(delete(filename))
 	}
 	return resp
 }
@@ -140,29 +233,45 @@ func uintToString(id uint) string {
 	return strconv.FormatUint(uint64(id), 10)
 }
 
-func delete(hash string) error {
+func delete(hash string) Response {
 	file, err := database.GetFile(hash, conn)
 	if err != nil {
-		return err
+		return UnknownFile
 	}
 	err = file.Delete(conn)
-	return err
+	if err == nil {
+		return Ok
+	}
+	return InternalError
 }
 
-func store(hash string) error {
+func store(hash string, c net.Conn) error {
 	file, err := database.GetFile(hash, conn)
 	if err != nil {
 		return err
 	}
 
-	//@TODO when tcp server operationnal: wait for connection
 	err = file.Persist(conn)
+
 	if err != nil {
 		return err
 	}
-	//@TODO if connection fail, delete file
 
-	return errors.New("Not implemented")
+	//Read data
+	netData, err := bufio.NewReader(c).ReadString(CmdDelimiter)
+	args := strings.Split(netData, ArgsDelimiter)
+	if err == nil && len(args) >= 2 {
+		code, err := strconv.Atoi(args[0])
+		if Query(code) == DoneStoring && err == nil {
+			return nil
+		} else {
+			log.Printf("Unknown code")
+		}
+	} else {
+		log.Printf("Error while reading file : %v\nArguments: %v", err, args)
+	}
+	err = file.SetExp(TTL, conn)
+	return err
 }
 
 //@TODO shouldn't be good to delete all file as well ?
@@ -175,6 +284,7 @@ func subscribeNew(dns string, used, total uint) (uint, Response) {
 	storage.GenerateUid(conn)
 	err := storage.Create(conn)
 	if err != nil {
+		log.Printf("Error while creating storage: %v\nstorage: %v", err, storage)
 		return 0, InternalError
 	}
 	return storage.ID, Ok
@@ -201,11 +311,14 @@ func subscribeExisting(id uint, dns string, used, total uint) Response {
 	return Ok
 }
 
-func unsubscribe(id uint) error {
+func unsubscribe(id uint) Response {
 	storage, err := database.GetStorage(id, conn)
 	if err != nil {
-		return err
+		return UnknownStorage
 	}
 	err = storage.Delete(conn)
-	return err
+	if err == nil {
+		return Ok
+	}
+	return InternalError
 }
