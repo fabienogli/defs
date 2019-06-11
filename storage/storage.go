@@ -6,7 +6,6 @@ import (
 	"github.com/gorilla/mux"
 	"io"
 	"log"
-	"mime/multipart"
 	"net/http"
 	"os"
 	u "storage/utils"
@@ -37,12 +36,8 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	//should be high enough.
 	limit := maxSizeInByte +  1024
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
-
-	reader, err := r.MultipartReader()
-	if err != nil {
-		u.RespondWithError(w, http.StatusBadRequest, err)
-	}
-	p, filename, err := parseMultiPartForm(reader)
+	r.ParseMultipartForm(maxSizeInByte)
+	filename, _, err := parseMultiPartForm(r)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		msg := err.Error()
@@ -60,39 +55,42 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Creating file on hard drive
-	err = writeFileToDisk(filename, p, limit)
-	// TODO irindul 2019-06-10 : Handle file error
-
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		u.RespondWithError(w, http.StatusBadRequest, err)
+	}
+	defer file.Close()
+	err = writeFileToDisk(filename, file, limit)
+	if err != nil {
+		switch err.(type) {
+		case CannotCreateFile:
+			u.RespondWithError(w, http.StatusInternalServerError, err)
+		}
+	}
 
 	u.RespondWithMsg(w, 200, "file uploaded successfully")
 }
 
-func parseMultiPartForm(reader *multipart.Reader) ( io.Reader,  string,  error){
-	p, err := reader.NextPart()
+func parseMultiPartForm(r *http.Request) (filename string, ttl string,  err error){
+
+	hash := r.FormValue("hash")
+
+	if hash == "" {
+		return "", "", NewHashNotFound()
+	}
+
+	filename, err = parseHash(strings.NewReader(hash))
 	if err != nil {
-		return nil, "", NewInternalError(err.Error())
+		return "", "", err
 	}
 
-	if p.FormName() != "hash" {
-		return nil, "", NewHashNotFound()
+	ttl = r.FormValue("ttl")
+	if ttl == "" {
+		//default ttl
+		ttl = "1d"
 	}
 
-	fileName, err := parseHash(p)
-	if err != nil {
-		return nil, "", err
-	}
-
-	// parse file field
-	p, err = reader.NextPart()
-	if err != nil {
-		return nil, "", NewInternalError(err.Error())
-	}
-
-	if p.FormName() != "file" {
-		return nil, "", NewBadRequest("file is expected")
-	}
-
-	return p, fileName, nil
+	return filename, ttl, nil
 }
 
 func parseHash(r io.Reader) (string, error) {
