@@ -2,13 +2,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"github.com/gorilla/mux"
 	"io"
 	"log"
-	"mime/multipart"
 	"net/http"
 	"os"
+	"os/exec"
 	u "storage/utils"
 	"strconv"
 	"strings"
@@ -27,7 +28,6 @@ func getAbsDirectory() string {
 }
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.Header)
 	limitInMbStr := os.Getenv("STORAGE_LIMIT")
 	limitInMb, _ := strconv.Atoi(limitInMbStr)
 	maxSizeInByte := int64(limitInMb * 1024 * 1024)
@@ -37,12 +37,8 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	//should be high enough.
 	limit := maxSizeInByte +  1024
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
-
-	reader, err := r.MultipartReader()
-	if err != nil {
-		u.RespondWithError(w, http.StatusBadRequest, err)
-	}
-	p, filename, err := parseMultiPartForm(reader)
+	r.ParseMultipartForm(maxSizeInByte)
+	filename, ttl, err := parseMultiPartForm(r)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		msg := err.Error()
@@ -60,39 +56,88 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Creating file on hard drive
-	err = writeFileToDisk(filename, p, limit)
-	// TODO irindul 2019-06-10 : Handle file error
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		u.RespondWithError(w, http.StatusBadRequest, err)
+	}
+	defer file.Close()
+	err = writeFileToDisk(filename, file, limit)
+	if err != nil {
+		switch err.(type) {
+		case CannotCreateFile:
+			u.RespondWithError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
 
+	err = setTTL(ttl, filename)
+	if err != nil {
+		DeleteFile(filename)
+		u.RespondWithError(w, http.StatusInternalServerError, err)
+		return
+	}
 
 	u.RespondWithMsg(w, 200, "file uploaded successfully")
 }
 
-func parseMultiPartForm(reader *multipart.Reader) ( io.Reader,  string,  error){
-	p, err := reader.NextPart()
+func DeleteFile(filename string) {
+	err := os.RemoveAll(filename)
 	if err != nil {
-		return nil, "", NewInternalError(err.Error())
+		log.Panicf("could not delete file %s : %s", filename, err)
 	}
+}
 
-	if p.FormName() != "hash" {
-		return nil, "", NewHashNotFound()
-	}
+func setTTL(ttl string, hash string) error{
+	echo := exec.Command("echo", fmt.Sprintf("rm %s%s", getAbsDirectory(), hash))
+	at := exec.Command("at", fmt.Sprintf("now + %s", ttl))
+	r, w := io.Pipe()
 
-	fileName, err := parseHash(p)
+	echo.Stdout = w
+	at.Stdin = r
+
+	err := echo.Start()
 	if err != nil {
-		return nil, "", err
+		return err
 	}
-
-	// parse file field
-	p, err = reader.NextPart()
+	err = at.Start()
 	if err != nil {
-		return nil, "", NewInternalError(err.Error())
+		return err
+	}
+	err = echo.Wait()
+	if err != nil {
+		return err
 	}
 
-	if p.FormName() != "file" {
-		return nil, "", NewBadRequest("file is expected")
+	w.Close()
+	err = at.Wait()
+	r.Close()
+	if err != nil {
+		return err
 	}
 
-	return p, fileName, nil
+	return nil
+}
+
+func parseMultiPartForm(r *http.Request) (filename string, ttl string,  err error){
+
+	hash := r.FormValue("hash")
+
+	if hash == "" {
+		return "", "", NewHashNotFound()
+	}
+
+	filename, err = parseHash(strings.NewReader(hash))
+	if err != nil {
+		return "", "", err
+	}
+
+	ttl = r.FormValue("ttl")
+	if ttl == "" {
+		//default ttl to one day
+		ttl = "1 day"
+	}
+
+	return filename, ttl, nil
 }
 
 func parseHash(r io.Reader) (string, error) {

@@ -147,13 +147,10 @@ func TestParseMultiPart(t *testing.T) {
 		t.Errorf("could not create request : %s", err)
 		return
 	}
-	reader, err := req.MultipartReader()
-	if err != nil {
-		t.Errorf("could not craete multipart reader : %s", err)
-		return
-	}
 
-	p, filename, err := parseMultiPartForm(reader)
+	req.ParseMultipartForm(3500)
+
+	filename, _, err := parseMultiPartForm(req)
 	if err != nil {
 		t.Errorf("could not parse multipartform : %s", err)
 	}
@@ -162,5 +159,9 @@ func TestParseMultiPart(t *testing.T) {
 		t.Errorf("hash should have been parse : expected %s, got %s", hash, filename)
 	}
 
-	testFileContent(t, fileContent, p)
+	file, _ , err := req.FormFile("file")
+	if err != nil {
+		t.Errorf("could not read file from req")
+	}
+	testFileContent(t, fileContent, file)
 }
