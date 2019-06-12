@@ -33,6 +33,7 @@ const (
 	NoStorageLeft       Response = 2
 	HashNotFound        Response = 3
 	MalformRequest      Response = 4
+	InternalError      Response = 666
 )
 
 func (r Response) String() string {
@@ -122,6 +123,7 @@ func listen(connection *net.UDPConn, quit chan bool) {
 
 		//Parse query from packet
 		query := string(buffer[:n])
+		query = strings.Trim(query, "\n")
 		log.Println("from", remoteAddr, "-", query)
 
 		queryParts := strings.Split(query, " ")
@@ -137,7 +139,7 @@ func listen(connection *net.UDPConn, quit chan bool) {
 			}
 
 			hash := queryParts[1]
-			go HandleWhereIs(connection, remoteAddr, hash)
+			HandleWhereIs(connection, remoteAddr, hash)
 		case WhereTo.String():
 			if len(queryParts) != 3 {
 				continue
@@ -145,10 +147,11 @@ func listen(connection *net.UDPConn, quit chan bool) {
 
 			hash := queryParts[1]
 			size, err := strconv.Atoi(queryParts[2])
-			if err != nil {
+			if err == nil {
+				HandleWhereTo(connection, remoteAddr, hash, size)
 				continue
 			}
-			go HandleWhereTo(connection, remoteAddr, hash, size)
+			log.Printf("Error happened %v", err)
 		default:
 			//Ignore by default
 			continue
@@ -158,53 +161,32 @@ func listen(connection *net.UDPConn, quit chan bool) {
 }
 
 func HandleWhereTo(connection *net.UDPConn, addr *net.UDPAddr, hash string, size int) {
-	//todo Query DB here with function whereTo(hash, size) etc...
-
-	resp := OK.String() + " storage"
-	Respond(connection, addr, resp)
-}
-
-func HandleWhereIs(connection *net.UDPConn, addr *net.UDPAddr, hash string) {
-	// TODO irindul 2019-05-28 : Query DB here with function whereIs(hash)
-
-	resp := OK.String() + " storage"
-	Respond(connection, addr, resp)
-}
-
-func Respond(connection *net.UDPConn, addr *net.UDPAddr, resp string) {
-	respBytes := []byte(resp)
-	_, err := connection.WriteToUDP(respBytes, addr)
-	if err != nil {
-		log.Println("could not write response ", err.Error())
-	}
-}
-
-//get the location of the file
-func whereIs(hash string) (database.Storage, error) {
-	file, err := database.GetFile(hash, conn)
-	if err == nil {
-		storage, err := database.GetStorage(file.DNS, conn)
-		return storage, err
-	}
-	return database.Storage{}, err
-}
-
-//Get the best Storage for file
-func whereTo(hash string, size int) (database.Storage, Response) {
-	_, err := database.GetFile(hash, conn)
-	if err != nil {
-		return database.Storage{}, HashAlreadyExisting
-	}
+	response := MalformRequest.String()
 	if size < 0 {
-		return database.Storage{}, MalformRequest
+		Respond(connection, addr, response)
+		return
 	}
-	storage, resp := getLargestStorage(uint(size))
-	file, err := database.NewFile(hash, storage.ID, size)
-	err = tempStore(file)
-	if err != nil {
-		return database.Storage{}, MalformRequest
+	_, err := database.GetFile(hash, conn)
+	if err != redis.ErrNil {
+		log.Printf("Error happened %v", err)
+		response = HashAlreadyExisting.String()
+		Respond(connection, addr, response)
+		return
 	}
-	return storage, resp  
+	storage, code := getLargestStorage(uint(size))
+	if code == OK {
+		file, err := database.NewFile(hash, storage.ID, size)
+		erratum := tempStore(file)
+		if err == nil && erratum == nil {
+			response = fmt.Sprintf("%d %s", OK, storage.DNS)
+		} else {
+			response = MalformRequest.String()
+			log.Printf("Error while saving file %v\nor temp Storing %v", err, erratum)
+		}
+	} else {
+		response = code.String()
+	}
+	Respond(connection, addr, response)
 }
 
 func getLargestStorage(size uint) (database.Storage, Response) {
@@ -227,11 +209,28 @@ func getLargestStorage(size uint) (database.Storage, Response) {
 	return database.Storage{}, NoStorageLeft
 }
 
+func HandleWhereIs(connection *net.UDPConn, addr *net.UDPAddr, hash string) {
+	resp := HashNotFound.String()
+	file, err := database.GetFile(hash, conn)
+	if err == nil {
+		storage, err := database.GetStorage(file.DNS, conn)
+		if err == nil { resp = fmt.Sprintf("%d %s", OK, storage.DNS)}
+	}
+	Respond(connection, addr, resp)
+}
+
+func Respond(connection *net.UDPConn, addr *net.UDPAddr, resp string) {
+	respBytes := []byte(resp)
+	_, err := connection.WriteToUDP(respBytes, addr)
+	if err != nil {
+		log.Println("could not write response ", err.Error())
+	}
+}
+
 func tempStore(file database.File) error {
 	err := file.Create(conn)
-	if err != nil {
-		return err
+	if err == nil {
+		err = file.SetExp(TTL, conn)
 	}
-	err = file.SetExp(TTL, conn)
 	return err
 }
