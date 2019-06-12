@@ -123,6 +123,7 @@ func listen(connection *net.UDPConn, quit chan bool) {
 
 		//Parse query from packet
 		query := string(buffer[:n])
+		query = strings.Trim(query, "\n")
 		log.Println("from", remoteAddr, "-", query)
 
 		queryParts := strings.Split(query, " ")
@@ -130,26 +131,29 @@ func listen(connection *net.UDPConn, quit chan bool) {
 			//We ignore all malformed queries
 			continue
 		}
-
 		switch queryParts[0] {
 		case WhereIs.String():
+			log.Println("Dans case Where is")
 			if len(queryParts) != 2 {
 				continue
 			}
-
+			log.Println("Premier if passed")
 			hash := queryParts[1]
-			go HandleWhereIs(connection, remoteAddr, hash)
+			HandleWhereIs(connection, remoteAddr, hash)
 		case WhereTo.String():
+			log.Println("Dans case Where to")
 			if len(queryParts) != 3 {
+				log.Printf("Premier if")
 				continue
 			}
-
+			log.Println("Premier if passed")
 			hash := queryParts[1]
 			size, err := strconv.Atoi(queryParts[2])
-			if err != nil {
+			if err == nil {
+				HandleWhereTo(connection, remoteAddr, hash, size)
 				continue
 			}
-			go HandleWhereTo(connection, remoteAddr, hash, size)
+			log.Printf("Error happened %v", err)
 		default:
 			//Ignore by default
 			continue
@@ -165,42 +169,26 @@ func HandleWhereTo(connection *net.UDPConn, addr *net.UDPAddr, hash string, size
 		return
 	}
 	_, err := database.GetFile(hash, conn)
-	if err == nil {
-		storage, code := getLargestStorage(uint(size))
-		if code == OK {
-			file, err := database.NewFile(hash, storage.ID, size)
-			erratum := tempStore(file)
-			if err == nil && erratum == nil {
-				response = fmt.Sprintf("%d %s", OK, storage.DNS)
-			} else {
-				response = MalformRequest.String()
-				log.Printf("Error while saving file %v\nor temp Storing %v", err, erratum)
-			}
+	if err != redis.ErrNil {
+		log.Printf("Error happened %v", err)
+		response = HashAlreadyExisting.String()
+		Respond(connection, addr, response)
+		return
+	}
+	storage, code := getLargestStorage(uint(size))
+	if code == OK {
+		file, err := database.NewFile(hash, storage.ID, size)
+		erratum := tempStore(file)
+		if err == nil && erratum == nil {
+			response = fmt.Sprintf("%d %s", OK, storage.DNS)
 		} else {
-			response = code.String()
+			response = MalformRequest.String()
+			log.Printf("Error while saving file %v\nor temp Storing %v", err, erratum)
 		}
 	} else {
-		response = HashAlreadyExisting.String()
+		response = code.String()
 	}
 	Respond(connection, addr, response)
-}
-
-func HandleWhereIs(connection *net.UDPConn, addr *net.UDPAddr, hash string) {
-	resp := HashNotFound.String()
-	file, err := database.GetFile(hash, conn)
-	if err == nil {
-		storage, err := database.GetStorage(file.DNS, conn)
-		if err == nil { resp = fmt.Sprintf("%d %s", OK, storage.DNS)}
-	}
-	Respond(connection, addr, resp)
-}
-
-func Respond(connection *net.UDPConn, addr *net.UDPAddr, resp string) {
-	respBytes := []byte(resp)
-	_, err := connection.WriteToUDP(respBytes, addr)
-	if err != nil {
-		log.Println("could not write response ", err.Error())
-	}
 }
 
 func getLargestStorage(size uint) (database.Storage, Response) {
@@ -221,6 +209,24 @@ func getLargestStorage(size uint) (database.Storage, Response) {
 		return storages[i], OK
 	}
 	return database.Storage{}, NoStorageLeft
+}
+
+func HandleWhereIs(connection *net.UDPConn, addr *net.UDPAddr, hash string) {
+	resp := HashNotFound.String()
+	file, err := database.GetFile(hash, conn)
+	if err == nil {
+		storage, err := database.GetStorage(file.DNS, conn)
+		if err == nil { resp = fmt.Sprintf("%d %s", OK, storage.DNS)}
+	}
+	Respond(connection, addr, resp)
+}
+
+func Respond(connection *net.UDPConn, addr *net.UDPAddr, resp string) {
+	respBytes := []byte(resp)
+	_, err := connection.WriteToUDP(respBytes, addr)
+	if err != nil {
+		log.Println("could not write response ", err.Error())
+	}
 }
 
 func tempStore(file database.File) error {
