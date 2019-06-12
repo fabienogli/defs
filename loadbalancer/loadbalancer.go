@@ -159,7 +159,6 @@ func listen(connection *net.UDPConn, quit chan bool) {
 }
 
 func HandleWhereTo(connection *net.UDPConn, addr *net.UDPAddr, hash string, size int) {
-	//todo Query DB here with function whereTo(hash, size) etc...
 	response := MalformRequest.String()
 	if size < 0 {
 		Respond(connection, addr, response)
@@ -187,9 +186,12 @@ func HandleWhereTo(connection *net.UDPConn, addr *net.UDPAddr, hash string, size
 }
 
 func HandleWhereIs(connection *net.UDPConn, addr *net.UDPAddr, hash string) {
-	// TODO irindul 2019-05-28 : Query DB here with function whereIs(hash)
-
-	resp := OK.String() + " storage"
+	resp := HashNotFound.String()
+	file, err := database.GetFile(hash, conn)
+	if err == nil {
+		storage, err := database.GetStorage(file.DNS, conn)
+		if err == nil { resp = fmt.Sprintf("%d %s", OK, storage.DNS)}
+	}
 	Respond(connection, addr, resp)
 }
 
@@ -199,34 +201,6 @@ func Respond(connection *net.UDPConn, addr *net.UDPAddr, resp string) {
 	if err != nil {
 		log.Println("could not write response ", err.Error())
 	}
-}
-
-//get the location of the file
-func whereIs(hash string) (database.Storage, error) {
-	file, err := database.GetFile(hash, conn)
-	if err == nil {
-		storage, err := database.GetStorage(file.DNS, conn)
-		return storage, err
-	}
-	return database.Storage{}, err
-}
-
-//Get the best Storage for file
-func whereTo(hash string, size int) Response {
-	_, err := database.GetFile(hash, conn)
-	if err != nil {
-		return HashAlreadyExisting
-	}
-	if size < 0 {
-		return MalformRequest
-	}
-	storage, resp := getLargestStorage(uint(size))
-	file, err := database.NewFile(hash, storage.ID, size)
-	err = tempStore(file)
-	if err != nil {
-		return MalformRequest
-	}
-	return fmt.Sprintf("%d %s", OK, storage.DNS)
 }
 
 func getLargestStorage(size uint) (database.Storage, Response) {
