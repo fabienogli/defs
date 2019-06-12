@@ -231,9 +231,8 @@ func Respond(connection *net.UDPConn, addr *net.UDPAddr, resp string) {
 
 func tempStore(file database.File) error {
 	err := file.Create(conn)
-	if err != nil {
-		return err
+	if err == nil {
+		err = file.SetExp(TTL, conn)
 	}
-	err = file.SetExp(TTL, conn)
 	return err
 }
