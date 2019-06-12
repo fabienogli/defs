@@ -131,22 +131,20 @@ func listen(connection *net.UDPConn, quit chan bool) {
 			//We ignore all malformed queries
 			continue
 		}
+
 		switch queryParts[0] {
 		case WhereIs.String():
-			log.Println("Dans case Where is")
 			if len(queryParts) != 2 {
 				continue
 			}
-			log.Println("Premier if passed")
+
 			hash := queryParts[1]
 			HandleWhereIs(connection, remoteAddr, hash)
 		case WhereTo.String():
-			log.Println("Dans case Where to")
 			if len(queryParts) != 3 {
-				log.Printf("Premier if")
 				continue
 			}
-			log.Println("Premier if passed")
+
 			hash := queryParts[1]
 			size, err := strconv.Atoi(queryParts[2])
 			if err == nil {
