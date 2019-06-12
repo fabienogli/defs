@@ -33,6 +33,7 @@ const (
 	NoStorageLeft       Response = 2
 	HashNotFound        Response = 3
 	MalformRequest      Response = 4
+	InternalError      Response = 666
 )
 
 func (r Response) String() string {
@@ -159,9 +160,30 @@ func listen(connection *net.UDPConn, quit chan bool) {
 
 func HandleWhereTo(connection *net.UDPConn, addr *net.UDPAddr, hash string, size int) {
 	//todo Query DB here with function whereTo(hash, size) etc...
-
-	resp := OK.String() + " storage"
-	Respond(connection, addr, resp)
+	response := MalformRequest.String()
+	if size < 0 {
+		Respond(connection, addr, response)
+		return
+	}
+	_, err := database.GetFile(hash, conn)
+	if err == nil {
+		storage, code := getLargestStorage(uint(size))
+		if code == OK {
+			file, err := database.NewFile(hash, storage.ID, size)
+			erratum := tempStore(file)
+			if err == nil && erratum == nil {
+				response = fmt.Sprintf("%d %s", OK, storage.DNS)
+			} else {
+				response = MalformRequest.String()
+				log.Printf("Error while saving file %v\nor temp Storing %v", err, erratum)
+			}
+		} else {
+			response = code.String()
+		}
+	} else {
+		response = HashAlreadyExisting.String()
+	}
+	Respond(connection, addr, response)
 }
 
 func HandleWhereIs(connection *net.UDPConn, addr *net.UDPAddr, hash string) {
@@ -190,21 +212,21 @@ func whereIs(hash string) (database.Storage, error) {
 }
 
 //Get the best Storage for file
-func whereTo(hash string, size int) (database.Storage, Response) {
+func whereTo(hash string, size int) Response {
 	_, err := database.GetFile(hash, conn)
 	if err != nil {
-		return database.Storage{}, HashAlreadyExisting
+		return HashAlreadyExisting
 	}
 	if size < 0 {
-		return database.Storage{}, MalformRequest
+		return MalformRequest
 	}
 	storage, resp := getLargestStorage(uint(size))
 	file, err := database.NewFile(hash, storage.ID, size)
 	err = tempStore(file)
 	if err != nil {
-		return database.Storage{}, MalformRequest
+		return MalformRequest
 	}
-	return storage, resp  
+	return fmt.Sprintf("%d %s", OK, storage.DNS)
 }
 
 func getLargestStorage(size uint) (database.Storage, Response) {
