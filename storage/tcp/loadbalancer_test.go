@@ -7,7 +7,7 @@ import (
 )
 
 func TestWriteQuery(t *testing.T) {
-	expected := "0 arg1 arg2 34"
+	expected := "0 arg1 arg2 34\n"
 	output := craftQuery(SubscribeNew, "arg1", "arg2", "34")
 	if output != expected {
 		t.Errorf("expected %s, got %s", expected, output)
@@ -54,14 +54,17 @@ func createTestFileId(t *testing.T) *os.File {
 	} else {
 		//Copy id file
 		copyIdFile(path)
-		file, err = os.Open(path)
+		file, err = os.OpenFile(path, os.O_WRONLY, 0644)
 		if err != nil {
 			t.Errorf("could not open file")
 		}
 	}
 
 	if file != nil {
-		file.Write([]byte("testId"))
+		_ ,err := file.Write([]byte("testId"))
+		if err != nil {
+			t.Errorf("could not write testId to test id file : %s", err)
+		}
 	}
 	return file
 }
@@ -78,7 +81,10 @@ func copyIdFile(path string) {
 	}
 	defer backup.Close()
 
-	io.Copy(backup, file)
+	_, err = io.Copy(backup, file)
+	if err != nil {
+		panic("could not copy id file")
+	}
 }
 
 

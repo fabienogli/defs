@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -15,6 +16,12 @@ type LoadBalancerCode uint8
 const (
 	SubscribeNew   LoadBalancerCode = iota
 	SubscribeExist LoadBalancerCode = iota
+)
+
+type ResponseCode uint8
+
+const (
+	Ok ResponseCode = iota
 )
 
 func GetTCPAddr() string {
@@ -74,7 +81,6 @@ func SubscibeWithoutId(conn net.Conn) {
 	usedSpace := fmt.Sprintf("%d", GetUsedSpace())
 
 	query := craftQuery(SubscribeNew, myDns, usedSpace, totalSpace)
-	log.Println(query)
 
 	buf := []byte(query)
 	n, err := conn.Write(buf)
@@ -88,6 +94,52 @@ func SubscibeWithoutId(conn net.Conn) {
 
 	//Wait for response
 
+	//We make a buffer big enough for the answer, 2048 is way overkill but at least we are sure
+	buf = make([]byte, 2048)
+	n, err = conn.Read(buf)
+	if err != nil {
+		log.Panicf("could not read from connection : %s", err)
+	}
+	response := string(buf[:n])
+
+	HandleNewId(response)
+
+}
+
+func HandleNewId(response string) {
+	responseParts := strings.Split(response, " ")
+	status, err := strconv.Atoi(responseParts[0])
+	if err != nil {
+		log.Panicf("could not convert response into string : %s", err)
+	}
+	switch ResponseCode(status) {
+	case Ok:
+		id := responseParts[1]
+		createIdFile(id)
+	default:
+		log.Panicf("bad response from loadbalancer : %s", response)
+	}
+
+}
+
+func createIdFile(id string) {
+	idPath := os.Getenv("STORAGE_ID_FILE")
+	if idPath == "" {
+		log.Panicf("no STORAGE_ID_FILE was set, please make sure to export this env variable")
+	}
+	idFile, err := os.OpenFile(idPath, os.O_WRONLY | os.O_CREATE, 0644)
+	if err != nil {
+		log.Panicf("could not open %s : %s", idPath, err)
+	}
+	defer idFile.Close()
+	r := strings.NewReader(id)
+	n, err := io.Copy(idFile, r)
+	if err != nil {
+		log.Panicf("could not write id to %s : %s", idPath, err)
+	}
+	if n != int64(len(id)) {
+		log.Panicf("partial write of id, %d was written instead of %d", n, len(id))
+	}
 }
 
 func GetUsedSpace() int64 {
@@ -114,5 +166,5 @@ func GetUsedSpace() int64 {
 }
 
 func craftQuery(code LoadBalancerCode, args ...string) string {
-	return fmt.Sprintf("%d %s", code, strings.Join(args, " "))
+	return fmt.Sprintf("%d %s\n", code, strings.Join(args, " "))
 }
