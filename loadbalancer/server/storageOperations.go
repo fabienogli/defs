@@ -17,7 +17,7 @@ func deleteFile(hash string) Response {
 	}
 	err = file.Delete(conn)
 	if err == nil {
-		return Ok
+		return OK
 	}
 	return InternalError
 }
@@ -63,7 +63,7 @@ func subscribeNew(dns string, used, total uint) Response {
 		log.Printf("Error while creating storage: %v\nstorage: %v", err, storage)
 		return InternalError
 	}
-	return Response(fmt.Sprintf("%s%s%d", Ok, ArgsDelimiter, storage.ID))
+	return Response(fmt.Sprintf("%s%s%d", OK, ArgsDelimiter, storage.ID))
 }
 
 func subscribeExisting(id uint, dns string, used, total uint) Response {
@@ -84,7 +84,7 @@ func subscribeExisting(id uint, dns string, used, total uint) Response {
 	if err != nil {
 		return InternalError
 	}
-	return Ok
+	return OK
 }
 
 func unsubscribe(id uint) Response {
@@ -94,7 +94,7 @@ func unsubscribe(id uint) Response {
 	}
 	err = storage.Delete(conn)
 	if err == nil {
-		return Ok
+		return OK
 	}
 	return InternalError
 }

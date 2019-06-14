@@ -2,7 +2,6 @@ package server
 
 import (
 	"bufio"
-	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"loadbalancer/database"
 	"log"
@@ -13,26 +12,6 @@ import (
 	"time"
 )
 
-const (
-	SubscribeNew      Query = "0"
-	SubscribeExisting Query = "1"
-	Unsub             Query = "2"
-	Store             Query = "3"
-	Delete            Query = "4"
-	DoneStoring       Query = "5"
-	TTL               int   = 60
-
-	Ok                 Response = "0"
-	StorageNonExistent Response = "1"
-	NotSameUsedSpace   Response = "2"
-	UnknownStorage     Response = "3"
-	UnknownFile        Response = "4"
-	InternalError      Response = "666"
-
-	CmdDelimiter  byte   = '\n'
-	ArgsDelimiter string = " "
-)
-
 type Args struct {
 	ID uint
 	FileName string
@@ -40,18 +19,6 @@ type Args struct {
 	DNS string
 	UsedSpace uint
 	TotalSpace uint
-}
-
-type Query string
-type Response string
-type NotEnoughArgument uint
-type ConversionError string
-
-func (n NotEnoughArgument) Error() string {
-	return fmt.Sprintf("Not Enough Argument : %d", n)
-}
-func (c ConversionError) Error() string {
-	return fmt.Sprintf("Error converting %s", c)
 }
 
 var conn redis.Conn
