@@ -104,6 +104,10 @@ func Subscribe() {
 	SendSubscription(args, conn)
 }
 
+func Unsubscribe() {
+
+}
+
 func SendSubscription(args Args, conn net.Conn) {
 	var code QueryCode
 	var query string

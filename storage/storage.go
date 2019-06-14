@@ -9,13 +9,14 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
+	"storage/tcp"
 	u "storage/utils"
 	"strconv"
 	"strings"
-	"storage/tcp"
 	"sync"
+	"syscall"
 )
-
 
 var downloadDir string
 
@@ -36,7 +37,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	//Limit DoS by setting a limit to the body reading
 	//The 1024 added are for the content of the metadata, may be augmented if fitted but
 	//should be high enough.
-	limit := maxSizeInByte +  1024
+	limit := maxSizeInByte + 1024
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	r.ParseMultipartForm(maxSizeInByte)
 	filename, ttl, err := parseMultiPartForm(r)
@@ -88,7 +89,7 @@ func DeleteFile(filename string) {
 	}
 }
 
-func setTTL(ttl string, hash string) error{
+func setTTL(ttl string, hash string) error {
 	echo := exec.Command("echo", fmt.Sprintf("rm %s%s", getAbsDirectory(), hash))
 	at := exec.Command("at", fmt.Sprintf("now + %s", ttl))
 	r, w := io.Pipe()
@@ -119,7 +120,7 @@ func setTTL(ttl string, hash string) error{
 	return nil
 }
 
-func parseMultiPartForm(r *http.Request) (filename string, ttl string,  err error){
+func parseMultiPartForm(r *http.Request) (filename string, ttl string, err error) {
 
 	hash := r.FormValue("hash")
 
@@ -169,7 +170,7 @@ func sanitarizeString(toSanitarize string) string {
 	return replacer.Replace(toSanitarize)
 }
 
-func writeFileToDisk(filename string, r io.Reader, sizeLimit int64) error{
+func writeFileToDisk(filename string, r io.Reader, sizeLimit int64) error {
 	dir := getAbsDirectory()
 	path := dir + filename
 
@@ -204,7 +205,6 @@ func download(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fileName := vars["file"]
 
-
 	if fileName == "" {
 		u.RespondWithMsg(w, http.StatusBadRequest, "File was not specified")
 		return
@@ -225,7 +225,6 @@ func download(w http.ResponseWriter, r *http.Request) {
 		u.RespondWithError(w, http.StatusInternalServerError, err)
 
 	}
-
 
 	fileHeader := make([]byte, 512)
 
@@ -262,7 +261,17 @@ func download(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	wg := sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(3)
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		defer wg.Done()
+		_ := <-sigs
+		tcp.Unsubscribe()
+	}()
+
 	go func() {
 		defer wg.Done()
 		r := mux.NewRouter()
@@ -281,7 +290,6 @@ func main() {
 		defer wg.Done()
 		tcp.Subscribe()
 	}()
-
 
 	wg.Wait()
 }
