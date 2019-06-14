@@ -7,31 +7,38 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
-type LoadBalancerCode uint8
+type QueryCode uint8
 
 const (
-	SubscribeNew      LoadBalancerCode = iota
-	SubscribeExisting LoadBalancerCode = iota
-	Unsub             LoadBalancerCode = iota
-	Store             LoadBalancerCode = iota
-	Delete            LoadBalancerCode = iota
-	DoneStoring       LoadBalancerCode = iota
+	SubscribeNew      QueryCode = iota
+	SubscribeExisting QueryCode = iota
+	Unsub             QueryCode = iota
+	Store             QueryCode = iota
+	Delete            QueryCode = iota
+	DoneStoring       QueryCode = iota
 )
 
-type ResponseCode uint64
+type ResponseCode string
 
 const (
-	Ok                 ResponseCode = iota
-	StorageNonExistent ResponseCode = 1
-	NotSameUsedSpace   ResponseCode = 2
-	UnknownStorage     ResponseCode = 3
-	UnknownFile        ResponseCode = 4
-	InternalError      ResponseCode = 666
+	Ok                 ResponseCode = "0"
+	StorageNonExistent ResponseCode = "1"
+	NotSameUsedSpace   ResponseCode = "2"
+	UnknownStorage     ResponseCode = "3"
+	UnknownFile        ResponseCode = "4"
+	InternalError      ResponseCode = "666"
 )
+
+
+type Args struct {
+	id string
+	dns string
+	usedSpace string
+	totalSpace string
+}
 
 func GetTCPAddr() string {
 	ip := os.Getenv("LOADBALANCER_IP")
@@ -68,52 +75,60 @@ func Subscribe() {
 	var err error
 	for {
 		conn, err = net.Dial("tcp", addr)
+
 		if err == nil {
 			break
 		}
 	}
-	if id == "" {
-		SubscibeWithoutId(conn)
-	} else {
-		SubscribeWithId(id, conn)
-	}
-}
+	defer conn.Close()
 
-func SubscribeWithId(id string, conn net.Conn) {
-	myDns := os.Getenv("STORAGE_DNS")
+	dns := os.Getenv("STORAGE_DNS")
+	if dns == "" {
+		log.Panicf("The STORAGE_DNS env variable must be set")
+	}
+
 	totalSpace := os.Getenv("STORAGE_SPACE")
+	if totalSpace == "" {
+		log.Panicf("The STORAGE_SPACE env variable must be set")
+	}
+
 	usedSpace := fmt.Sprintf("%d", GetUsedSpace())
 
-	query := craftQuery(SubscribeExisting, id, myDns, usedSpace, totalSpace)
-
-	buf := []byte(query)
-	n, err := conn.Write(buf)
-	if err != nil {
-		log.Panicf("error writing bytes to conn : %s", err)
-	}
-	if n != len(buf) {
-		log.Panicf("error wrote %d bytes but should have written %d", n, len(buf))
+	args := Args{
+		id: id,
+		dns: dns,
+		usedSpace: usedSpace,
+		totalSpace: totalSpace,
 	}
 
-	buf = make([]byte, 2048)
-	n, err = conn.Read(buf)
-	if err != nil {
-		log.Panicf("could not read from connection : %s", err)
-	}
-	response := string(buf[:n])
-
-	HandleExisting(response)
+	SendSubscription(args, conn)
 }
 
-func HandleExisting(response string) {
-	responseParts := strings.Split(response, " ")
-	status, err := strconv.Atoi(responseParts[0])
-	if err != nil {
-		log.Panicf("could not convert response into int : %s", err)
+func SendSubscription(args Args, conn net.Conn) {
+	var code QueryCode
+	var query string
+	isNewSubscription := args.id == ""
+
+	if isNewSubscription {
+		code = SubscribeNew
+		query = craftQuery(code, args.dns, args.usedSpace, args.totalSpace)
+	} else {
+		code = SubscribeExisting
+		query = craftQuery(code, args.id, args.dns, args.usedSpace, args.totalSpace)
 	}
-	switch ResponseCode(status) {
+
+	writeQueryToConn(query, conn)
+	response := readResponse(conn)
+	responseParts := strings.Split(response, " ")
+	switch ResponseCode(responseParts[0]) {
 	case Ok:
-		//We are all set baby ! We don't need any operations
+		if isNewSubscription {
+			if len(responseParts) != 2 {
+				log.Panicf("bad response from loadbalancer : %s", response)
+			}
+			id := responseParts[1]
+			createIdFile(id)
+		}
 	case NotSameUsedSpace:
 		//This is where we would handle rollback options => An exchange would start between the loadbalancer and the storage
 		//Each files currently stored on the storage would be sent to the loadbalancer
@@ -129,51 +144,27 @@ func HandleExisting(response string) {
 	}
 }
 
-func SubscibeWithoutId(conn net.Conn) {
-	//defer conn.Close()
-	myDns := os.Getenv("STORAGE_DNS")
-	totalSpace := os.Getenv("STORAGE_SPACE")
-	usedSpace := fmt.Sprintf("%d", GetUsedSpace())
-
-	query := craftQuery(SubscribeNew, myDns, usedSpace, totalSpace)
-
+func writeQueryToConn(query string, conn net.Conn) {
 	buf := []byte(query)
 	n, err := conn.Write(buf)
 	if err != nil {
 		log.Panicf("error writing bytes to conn : %s", err)
 	}
-
 	if n != len(buf) {
 		log.Panicf("error wrote %d bytes but should have written %d", n, len(buf))
 	}
+}
 
-	//We make a buffer big enough for the answer, 2048 is way overkill but at least we are sure
-	buf = make([]byte, 2048)
-	n, err = conn.Read(buf)
+func readResponse(conn net.Conn) string {
+	buf := make([]byte, 2048)
+	n, err := conn.Read(buf)
 	if err != nil {
 		log.Panicf("could not read from connection : %s", err)
 	}
 	response := string(buf[:n])
-
-	HandleNewId(response)
-
+	return response
 }
 
-func HandleNewId(response string) {
-	responseParts := strings.Split(response, " ")
-	status, err := strconv.Atoi(responseParts[0])
-	if err != nil {
-		log.Panicf("could not convert response into string : %s", err)
-	}
-	switch ResponseCode(status) {
-	case Ok:
-		id := responseParts[1]
-		createIdFile(id)
-	default:
-		log.Panicf("bad response from loadbalancer : %s", response)
-	}
-
-}
 
 func createIdFile(id string) {
 	idPath := os.Getenv("STORAGE_ID_FILE")
@@ -218,6 +209,6 @@ func GetUsedSpace() int64 {
 	return size
 }
 
-func craftQuery(code LoadBalancerCode, args ...string) string {
+func craftQuery(code QueryCode, args ...string) string {
 	return fmt.Sprintf("%d %s\n", code, strings.Join(args, " "))
 }
