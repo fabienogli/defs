@@ -120,7 +120,7 @@ func setTTL(ttl string, hash string) error{
 	return nil
 }
 
-func parseMultiPartForm(r *http.Request) (filename string, ttl string, err error){
+func parseMultiPartForm(r *http.Request) (filename string, ttl string,  err error){
 
 	hash := r.FormValue("hash")
 
