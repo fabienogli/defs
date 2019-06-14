@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 	"loadbalancer/database"
 )
@@ -38,8 +37,7 @@ func store(hash string, c net.Conn) error {
 	netData, err := bufio.NewReader(c).ReadString(CmdDelimiter)
 	args := strings.Split(netData, ArgsDelimiter)
 	if err == nil && len(args) >= 2 {
-		code, err := strconv.Atoi(args[0])
-		if Query(code) == DoneStoring && err == nil {
+		if Query(args[0]) == DoneStoring && err == nil {
 			return nil
 		} else {
 			log.Printf("Unknown code")
