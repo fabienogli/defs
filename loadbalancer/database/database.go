@@ -14,17 +14,17 @@ const (
 	StoragePrefix = "storage:"
 )
 
+type File struct {
+	Hash string `json:"hash"`
+	DNS  uint   `json:"dns"`
+	Size uint   `json:"size"`
+}
 
 type Storage struct {
 	ID    uint   `json:"id"`
 	DNS   string `json:"dns"`
 	Used  uint   `json:"used"`
 	Total uint   `json:"total"`
-}
-type File struct {
-	Hash string `json:"hash"`
-	DNS  uint   `json:"dns"`
-	Size uint   `json:"size"`
 }
 
 type Cud interface {
