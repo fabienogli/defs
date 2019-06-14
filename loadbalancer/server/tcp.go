@@ -204,14 +204,17 @@ func processUnsubscribe(args []string) (Args, error) {
 
 func handleStore(args []string, c net.Conn) {
 	arg, err := processFileOperation(args)
-	if err == nil {
-		err = store(arg.FileName, c)
-		if err != nil {
-			log.Printf("Error while storing file: %v", err)
-		}
+	if err != nil {
+		log.Printf("Error while parsing: %v", err)
+		write(InternalError, c)
+		return
 	}
-	log.Printf("Error %v", err)
-	write(InternalError, c)
+	err = store(arg.FileName, c)
+	if err != nil {
+		log.Printf("Error while storing: %v", err)
+		write(InternalError, c)
+		return
+	}
 }
 
 func processFileOperation(args []string) (Args, error) {
