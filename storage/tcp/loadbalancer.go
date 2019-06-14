@@ -94,7 +94,7 @@ func Subscribe() {
 		log.Panicf("The STORAGE_SPACE env variable must be set")
 	}
 
-	usedSpace := fmt.Sprintf("%d", GetUsedSpace())
+	usedSpace := fmt.Sprintf("%d", getUsedSpace())
 
 	args := Args{
 		id:         id,
@@ -103,7 +103,7 @@ func Subscribe() {
 		totalSpace: totalSpace,
 	}
 
-	SendSubscription(args, conn)
+	sendSubscription(args, conn)
 }
 
 func Unsubscribe() {
@@ -124,7 +124,7 @@ func Unsubscribe() {
 	}
 }
 
-func SendSubscription(args Args, conn net.Conn) {
+func sendSubscription(args Args, conn net.Conn) {
 	var code QueryCode
 	var query string
 	isNewSubscription := args.id == ""
@@ -205,7 +205,7 @@ func createIdFile(id string) {
 	}
 }
 
-func GetUsedSpace() int64 {
+func getUsedSpace() int64 {
 	path := os.Getenv("STORAGE_DIR")
 	var size int64
 	if _, err := os.Stat(path); os.IsNotExist(err) {
