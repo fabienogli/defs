@@ -21,10 +21,7 @@ func NewStorage(dns string, used, total int) (Storage, error) {
 	}, nil
 }
 
-func (storage Storage)  GenerateUid(conn redis.Conn) {
-	if storage.ID == 0 {
-		return
-	}
+func (storage *Storage)  GenerateUid(conn redis.Conn) {
 	tmp, _ := redis.Strings(conn.Do("KEYS", StoragePrefix+"*"))
 	storage.ID = uint(len(tmp) + 1)
 }
