@@ -16,9 +16,9 @@ const (
 	SubscribeNew      QueryCode = iota
 	SubscribeExisting QueryCode = iota
 	Unsub             QueryCode = iota
-	Store             QueryCode = iota
+	StoreStart        QueryCode = iota
 	Delete            QueryCode = iota
-	DoneStoring       QueryCode = iota
+	StoreDone         QueryCode = iota
 )
 
 type ResponseCode string
@@ -122,6 +122,23 @@ func Unsubscribe() {
 	default:
 		log.Panicf("There was a problem unsubsribing... %s : ", response)
 	}
+}
+
+func Store(done chan bool, errs chan error, filename string) {
+	conn := ConnectToLoadBalancer()
+	query := craftQuery(StoreStart, filename)
+	writeQueryToConn(query, conn)
+
+	select {
+	case <-done:
+		query = craftQuery(StoreDone, filename)
+		writeQueryToConn(query, conn)
+	case <-errs:
+		conn.Close()
+		return
+	}
+
+	conn.Close()
 }
 
 func sendSubscription(args Args, conn net.Conn) {

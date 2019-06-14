@@ -171,11 +171,17 @@ func sanitarizeString(toSanitarize string) string {
 }
 
 func writeFileToDisk(filename string, r io.Reader, sizeLimit int64) error {
+	done := make(chan bool)
+	errs := make(chan error)
+
+	go tcp.Store(done, errs, filename)
+
 	dir := getAbsDirectory()
 	path := dir + filename
 
 	tmpFile, err := os.Create(path)
 	if err != nil {
+		errs <- err
 		return NewCannotCreateFile(err)
 	}
 	defer tmpFile.Close()
@@ -186,6 +192,7 @@ func writeFileToDisk(filename string, r io.Reader, sizeLimit int64) error {
 	written, err := io.Copy(tmpFile, lmt)
 
 	if err != nil && err != io.EOF {
+		errs <- err
 		return NewInternalError(err.Error())
 	}
 
@@ -197,6 +204,7 @@ func writeFileToDisk(filename string, r io.Reader, sizeLimit int64) error {
 	}
 
 	log.Println("succesfully created file in ", path)
+	done <- true
 	return nil
 }
 
