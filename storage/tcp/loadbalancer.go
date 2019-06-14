@@ -14,14 +14,23 @@ import (
 type LoadBalancerCode uint8
 
 const (
-	SubscribeNew   LoadBalancerCode = iota
-	SubscribeExist LoadBalancerCode = iota
+	SubscribeNew      LoadBalancerCode = iota
+	SubscribeExisting LoadBalancerCode = iota
+	Unsub             LoadBalancerCode = iota
+	Store             LoadBalancerCode = iota
+	Delete            LoadBalancerCode = iota
+	DoneStoring       LoadBalancerCode = iota
 )
 
-type ResponseCode uint8
+type ResponseCode uint64
 
 const (
-	Ok ResponseCode = iota
+	Ok                 ResponseCode = iota
+	StorageNonExistent ResponseCode = 1
+	NotSameUsedSpace   ResponseCode = 2
+	UnknownStorage     ResponseCode = 3
+	UnknownFile        ResponseCode = 4
+	InternalError      ResponseCode = 666
 )
 
 func GetTCPAddr() string {
@@ -71,7 +80,53 @@ func Subscribe() {
 }
 
 func SubscribeWithId(id string, conn net.Conn) {
+	myDns := os.Getenv("STORAGE_DNS")
+	totalSpace := os.Getenv("STORAGE_SPACE")
+	usedSpace := fmt.Sprintf("%d", GetUsedSpace())
 
+	query := craftQuery(SubscribeExisting, id, myDns, usedSpace, totalSpace)
+
+	buf := []byte(query)
+	n, err := conn.Write(buf)
+	if err != nil {
+		log.Panicf("error writing bytes to conn : %s", err)
+	}
+	if n != len(buf) {
+		log.Panicf("error wrote %d bytes but should have written %d", n, len(buf))
+	}
+
+	buf = make([]byte, 2048)
+	n, err = conn.Read(buf)
+	if err != nil {
+		log.Panicf("could not read from connection : %s", err)
+	}
+	response := string(buf[:n])
+
+	HandleExisting(response)
+}
+
+func HandleExisting(response string) {
+	responseParts := strings.Split(response, " ")
+	status, err := strconv.Atoi(responseParts[0])
+	if err != nil {
+		log.Panicf("could not convert response into int : %s", err)
+	}
+	switch ResponseCode(status) {
+	case Ok:
+		//We are all set baby ! We don't need any operations
+	case NotSameUsedSpace:
+		//This is where we would handle rollback options => An exchange would start between the loadbalancer and the storage
+		//Each files currently stored on the storage would be sent to the loadbalancer
+		//The loadbalancer must compare it to the file list it have, and get up to date. (Delete old file, add new files etc...)
+		//By lack of time, this feature is not implemented right now and the program will just panic
+		log.Panicf("storage out of sync with loadbalancer, please check file lists manually")
+	case StorageNonExistent:
+		log.Panicf("id is corrupted, the loadbalancer doesn't know me :'(")
+	case InternalError:
+		log.Panicf("the loadbalancer crashed for some obscure reason")
+	default:
+		log.Panicf("bad response from loadbalancer : %s", response)
+	}
 }
 
 func SubscibeWithoutId(conn net.Conn) {
@@ -91,8 +146,6 @@ func SubscibeWithoutId(conn net.Conn) {
 	if n != len(buf) {
 		log.Panicf("error wrote %d bytes but should have written %d", n, len(buf))
 	}
-
-	//Wait for response
 
 	//We make a buffer big enough for the answer, 2048 is way overkill but at least we are sure
 	buf = make([]byte, 2048)
@@ -127,7 +180,7 @@ func createIdFile(id string) {
 	if idPath == "" {
 		log.Panicf("no STORAGE_ID_FILE was set, please make sure to export this env variable")
 	}
-	idFile, err := os.OpenFile(idPath, os.O_WRONLY | os.O_CREATE, 0644)
+	idFile, err := os.OpenFile(idPath, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		log.Panicf("could not open %s : %s", idPath, err)
 	}
