@@ -37,7 +37,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	//Limit DoS by setting a limit to the body reading
 	//The 1024 added are for the content of the metadata, may be augmented if fitted but
 	//should be high enough.
-	limit := maxSizeInByte + 1024
+	limit := maxSizeInByte +  1024
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	r.ParseMultipartForm(maxSizeInByte)
 	filename, ttl, err := parseMultiPartForm(r)
@@ -89,7 +89,7 @@ func DeleteFile(filename string) {
 	}
 }
 
-func setTTL(ttl string, hash string) error {
+func setTTL(ttl string, hash string) error{
 	echo := exec.Command("echo", fmt.Sprintf("rm %s%s", getAbsDirectory(), hash))
 	at := exec.Command("at", fmt.Sprintf("now + %s", ttl))
 	r, w := io.Pipe()
@@ -120,7 +120,7 @@ func setTTL(ttl string, hash string) error {
 	return nil
 }
 
-func parseMultiPartForm(r *http.Request) (filename string, ttl string, err error) {
+func parseMultiPartForm(r *http.Request) (filename string, ttl string, err error){
 
 	hash := r.FormValue("hash")
 
@@ -170,7 +170,7 @@ func sanitarizeString(toSanitarize string) string {
 	return replacer.Replace(toSanitarize)
 }
 
-func writeFileToDisk(filename string, r io.Reader, sizeLimit int64) error {
+func writeFileToDisk(filename string, r io.Reader, sizeLimit int64) error{
 	done := make(chan bool)
 	errs := make(chan error)
 
