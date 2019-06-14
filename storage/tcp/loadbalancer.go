@@ -32,11 +32,10 @@ const (
 	InternalError      ResponseCode = "666"
 )
 
-
 type Args struct {
-	id string
-	dns string
-	usedSpace string
+	id         string
+	dns        string
+	usedSpace  string
 	totalSpace string
 }
 
@@ -68,18 +67,21 @@ func GetId() string {
 	return string(buf[:n])
 }
 
+func ConnectToLoadBalancer() net.Conn {
+	addr := GetTCPAddr()
+	for {
+		conn, err := net.Dial("tcp", addr)
+
+		if err != nil {
+			continue
+		}
+		return conn
+	}
+}
+
 func Subscribe() {
 	id := GetId()
-	addr := GetTCPAddr()
-	var conn net.Conn
-	var err error
-	for {
-		conn, err = net.Dial("tcp", addr)
-
-		if err == nil {
-			break
-		}
-	}
+	conn := ConnectToLoadBalancer()
 	defer conn.Close()
 
 	dns := os.Getenv("STORAGE_DNS")
@@ -95,9 +97,9 @@ func Subscribe() {
 	usedSpace := fmt.Sprintf("%d", GetUsedSpace())
 
 	args := Args{
-		id: id,
-		dns: dns,
-		usedSpace: usedSpace,
+		id:         id,
+		dns:        dns,
+		usedSpace:  usedSpace,
 		totalSpace: totalSpace,
 	}
 
@@ -105,7 +107,21 @@ func Subscribe() {
 }
 
 func Unsubscribe() {
+	conn := ConnectToLoadBalancer()
+	defer conn.Close()
 
+	id := GetId()
+	query := craftQuery(Unsub, id)
+
+	writeQueryToConn(query, conn)
+	response := readResponse(conn)
+	responseParts := strings.Split(response, " ")
+	switch ResponseCode(responseParts[0]) {
+	case Ok:
+	//Subscribe went well
+	default:
+		log.Panicf("There was a problem unsubsribing... %s : ", response)
+	}
 }
 
 func SendSubscription(args Args, conn net.Conn) {
@@ -168,7 +184,6 @@ func readResponse(conn net.Conn) string {
 	response := string(buf[:n])
 	return response
 }
-
 
 func createIdFile(id string) {
 	idPath := os.Getenv("STORAGE_ID_FILE")

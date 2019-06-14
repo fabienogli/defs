@@ -268,7 +268,7 @@ func main() {
 
 	go func() {
 		defer wg.Done()
-		_ := <-sigs
+		_ = <-sigs
 		tcp.Unsubscribe()
 	}()
 
