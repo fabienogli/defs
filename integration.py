@@ -3,19 +3,24 @@ import hashlib
 BUF_SIZE = 65536
 
 def writeTestFile(name):
-	sha1 = hashlib.sha1()
 	with open(name, "w+") as f:
-		f.write("This is a test")
+		f.write("This is a test\n")
+	
+def hashFile(name):
+	hasheur = hashlib.sha256()
 	with open(name, "r") as f:
 		buf = f.read()
 		test = buf.encode('utf-8')
-		sha1.update(test)
-	hashFile = name + ".sha1"
+		hasheur.update(test)
+	hashFile = name + ".sha256"
 	with open(hashFile, "w+") as f:
-		f.write(sha1.hexdigest())
-	
+		f.write(hasheur.hexdigest())
+
 def main():
-	writeTestFile("Test")
+	file_name = "Test"
+	writeTestFile(file_name)
+	hashFile(file_name)
+
 
 if __name__ == "__main__":
 	main()
