@@ -20,8 +20,11 @@ unit_tests:
     - docker-compose exec -T loadbalancer go test ./...
     - docker-compose exec -T supervisor go test ./...
     - docker-compose exec -T storage go test ./...
+  only:
+    - develop
 
 integration_tests:
   stage: test
   script:
+    - sleep 45
     - . integration/upload.sh
