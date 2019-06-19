@@ -243,7 +243,6 @@ func getBaseUrl(response string, w http.ResponseWriter) (string, error) {
 	if respPart[0] != s.Ok.String() {
 		switch respPart[0] {
 		case s.HashAlreadyExisting.String():
-			//Todo rehash file and loop...
 			return "", HashErr(uint8(s.HashAlreadyExisting))
 		case s.HashNotFound.String():
 			err := fmt.Errorf("hash not found")
