@@ -249,6 +249,10 @@ func getBaseUrl(response string, w http.ResponseWriter) (string, error) {
 			err := fmt.Errorf("hash not found")
 			u.RespondWithError(w, http.StatusNotFound, err)
 			return "", err
+		case s.NoStorageLeft.String():
+			err := fmt.Errorf("no more space available on any of the servers")
+			u.RespondWithMsg(w, http.StatusInsufficientStorage, err.Error())
+			return "", err
 		default:
 			err := fmt.Errorf("response not implemented : %s", respPart[0])
 			u.RespondWithError(w, http.StatusNotImplemented, err)
