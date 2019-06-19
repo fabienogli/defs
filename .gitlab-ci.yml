@@ -4,16 +4,16 @@ services:
   - docker:dind
 
 stages:
+  - build
   - test
 
 before_script:
-  - apk add go 
+  - apk add go
   - go run utils/main.go
 
-run tests and build app:
+unit tests:
   stage: test
   script:
-    - docker-compose build
     - docker-compose up -d
     - docker-compose exec -T loadbalancer go test ./...
     - docker-compose exec -T supervisor go test ./...
@@ -21,3 +21,8 @@ run tests and build app:
     - docker-compose down -v
   only:
     - develop
+
+building:
+  stage: build
+  script:
+    - docker-compose build
