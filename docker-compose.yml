@@ -20,8 +20,8 @@ services:
       context: ./loadbalancer
     volumes:
       - ./loadbalancer:/go/src/loadbalancer/
-    ports:
-      - 8081:8081
+    expose:
+      - 8081
     env_file:
       - ./loadbalancer/.env
     networks:
@@ -30,8 +30,8 @@ services:
       - storenet
   routing_table:
     image: "redis:alpine"
-    ports:
-      - 6379:6379
+    expose:
+      - 6379
     networks:
       - routingnet
   test_routing_table:
@@ -46,8 +46,8 @@ services:
     volumes:
       - ./storage/:/go/src/storage/
       - ./storage/drive:/storage/tmp
-    ports:
-      - 8082:8082
+    expose:
+      - 8082
     env_file:
       - ./storage/.env
     networks:
