@@ -1,10 +1,13 @@
-#!/bin/sh
+#!/bin/bash
 ## UPLOADING FILE
 FILENAME='test'
 CONTENT='This is a test'
+ADDRESS='localhost:8080/file'
+
+
 echo  $CONTENT > $FILENAME
 OG_HASH=$(sha256sum $FILENAME)
-RESULT=$(curl -X POST -F filename=$FILENAME -F file=@$FILENAME localhost:8080/file)
+RESULT=$(curl -X POST -F filename=$FILENAME -F file=@$FILENAME $ADDRESS)
 KEY=$(echo $RESULT | cut -d ":" -f 1 | tr -d \" | tr -d \{)
 RESPONSE=$(echo $RESULT | cut -d ":" -f 2 | tr -d \" | tr -d \})
 
@@ -18,7 +21,7 @@ fi
 
 ## DOWNLOADING FILE
 OUTPUT_FILE="output"
-curl -X POST -F filename=$FILENAME -F file=@$FILENAME localhost:8080/file/$RESPONSE > $OUTPUT_FILE
+curl -X POST -F filename=$FILENAME -F file=@$FILENAME $ADDRESS/$RESPONSE > $OUTPUT_FILE
 NEW_HASH=$(sha256sum $OUTPUT_FILE)
 if [[ NEW_HASH != OG_HASH ]]; then
     echo "Different hash for same file, file is \n"
