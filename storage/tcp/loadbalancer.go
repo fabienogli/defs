@@ -128,7 +128,6 @@ func Store(done chan bool, errs chan error, filename string) {
 	conn := ConnectToLoadBalancer()
 	query := craftQuery(StoreStart, filename)
 	writeQueryToConn(query, conn)
-
 	select {
 	case <-done:
 		query = craftQuery(StoreDone, filename)

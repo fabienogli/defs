@@ -44,7 +44,7 @@ func TestParseHash(t *testing.T) {
 	reader = strings.NewReader(tooShortHash)
 
 	parsed, err = parseHash(reader)
-	if _, ok := err.(HashTooShort); !ok  || parsed != ""{
+	if _, ok := err.(HashTooShort); !ok || parsed != "" {
 		t.Errorf("hash is too short, it should not be valid : %s", err)
 	}
 
@@ -76,7 +76,7 @@ func TestWriteFileToDisk(t *testing.T) {
 
 	err := writeFileToDisk(filename, reader, 1000)
 	if err != nil {
-		t.Errorf("error writing file : %s",  err)
+		t.Errorf("error writing file : %s", err)
 	}
 
 	path := getAbsDirectory() + filename
@@ -100,7 +100,7 @@ func TestWriteFileToDisk(t *testing.T) {
 func testFileContent(t *testing.T, expected []byte, reader io.Reader) {
 	fileReader := bufio.NewReader(reader)
 	buf := make([]byte, len(expected))
-	n ,err := fileReader.Read(buf)
+	n, err := fileReader.Read(buf)
 
 	if err != nil && err != io.EOF {
 		t.Errorf("could not read file : %s", err)
@@ -159,7 +159,7 @@ func TestParseMultiPart(t *testing.T) {
 		t.Errorf("hash should have been parse : expected %s, got %s", hash, filename)
 	}
 
-	file, _ , err := req.FormFile("file")
+	file, _, err := req.FormFile("file")
 	if err != nil {
 		t.Errorf("could not read file from req")
 	}
