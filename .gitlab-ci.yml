@@ -4,25 +4,24 @@ services:
   - docker:dind
 
 stages:
-  - build
   - test
 
 before_script:
-  - apk add go
+  - apk add go curl
   - go run utils/main.go
+  - docker-compose up -d
 
-unit tests:
+after_script:
+  - docker-compose down -v
+
+unit_tests:
   stage: test
   script:
-    - docker-compose up -d
     - docker-compose exec -T loadbalancer go test ./...
     - docker-compose exec -T supervisor go test ./...
     - docker-compose exec -T storage go test ./...
-    - docker-compose down -v
-  only:
-    - develop
 
-building:
-  stage: build
+integration_tests:
+  stage: test
   script:
-    - docker-compose build
+    - . integration/upload.sh
