@@ -4,8 +4,7 @@ FILENAME='test'
 CONTENT='This is a test'
 ADDRESS='docker:8080/file'
 
-ping 127.0.0.1 -p 8080
-ping localhost -p 8080
+cat /etc/hosts
 
 echo  $CONTENT > $FILENAME
 OG_HASH=$(sha256sum $FILENAME)
