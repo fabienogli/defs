@@ -2,7 +2,12 @@
 ## UPLOADING FILE
 FILENAME='test'
 CONTENT='This is a test'
-ADDRESS='172.17.0.3:8080/file'
+ADDRESS='docker:8080/file'
+
+until [[ $(curl --write-out %{http_code} $ADDRESS) == "405" ]]; do
+    printf '.'
+    sleep 5
+done
 
 echo  $CONTENT > $FILENAME
 OG_HASH=$(sha256sum $FILENAME)
