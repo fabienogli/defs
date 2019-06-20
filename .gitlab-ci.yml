@@ -29,6 +29,7 @@ integration_tests:
     - ps aux
     - ip a
     - docker-compose logs
+    - sleep 45
     - ./integration/upload.sh
   only:
     - integration-test
