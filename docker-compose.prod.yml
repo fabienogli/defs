@@ -3,8 +3,6 @@ services:
   supervisor:
     build:
       context: ./supervisor
-    volumes:
-      - ./supervisor:/go/src/supervisor/
     entrypoint: /go/bin/supervisor
     env_file:
       - ./supervisor/.env
@@ -42,7 +40,6 @@ services:
       target: build
     entrypoint: ./entrypoint.prod.sh
     volumes:
-      - ./storage/:/go/src/storage/
       - ./storage/drive:/storage/tmp
     expose:
       - 8082
