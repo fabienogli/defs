@@ -17,19 +17,18 @@ const (
 	SubscribeExisting QueryCode = iota
 	Unsub             QueryCode = iota
 	StoreStart        QueryCode = iota
-	Delete            QueryCode = iota
 	StoreDone         QueryCode = iota
+	Delete            QueryCode = iota
 )
 
 type ResponseCode string
 
 const (
-	Ok                 ResponseCode = "0"
-	StorageNonExistent ResponseCode = "1"
-	NotSameUsedSpace   ResponseCode = "2"
-	UnknownStorage     ResponseCode = "3"
-	UnknownFile        ResponseCode = "4"
-	InternalError      ResponseCode = "666"
+	Ok               ResponseCode = "0"
+	UnknownStorage   ResponseCode = "1"
+	NotSameUsedSpace ResponseCode = "2"
+	UnknownFile      ResponseCode = "3"
+	InternalError    ResponseCode = "666"
 )
 
 type Args struct {
@@ -171,7 +170,7 @@ func sendSubscription(args Args, conn net.Conn) {
 		//The loadbalancer must compare it to the file list it have, and get up to date. (Delete old file, add new files etc...)
 		//By lack of time, this feature is not implemented right now and the program will just panic
 		log.Panicf("storage out of sync with loadbalancer, please check file lists manually")
-	case StorageNonExistent:
+	case UnknownStorage:
 		log.Panicf("id is corrupted, the loadbalancer doesn't know me :'(")
 	case InternalError:
 		log.Panicf("the loadbalancer crashed for some obscure reason")

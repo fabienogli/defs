@@ -25,14 +25,13 @@ const (
 	SubscribeExisting Query = "1"
 	Unsub             Query = "2"
 	Store             Query = "3"
-	Delete            Query = "4"
-	DoneStoring       Query = "5"
+	DoneStoring       Query = "4"
+	Delete            Query = "5"
 	TTL               int   = 60
 
-	StorageNonExistent Response = "1"
+	UnknownStorage     Response = "1"
 	NotSameUsedSpace   Response = "2"
-	UnknownStorage     Response = "3"
-	UnknownFile        Response = "4"
+	UnknownFile        Response = "3"
 
 	CmdDelimiter  byte   = '\n'
 	ArgsDelimiter string = " "

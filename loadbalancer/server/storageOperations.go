@@ -73,7 +73,7 @@ func subscribeExisting(id uint, dns string, used, total uint) Response {
 	}
 	dbStorage, err := database.GetStorage(id, conn)
 	if err != nil {
-		return StorageNonExistent
+		return UnknownStorage
 	}
 	if storage.Used != dbStorage.Used {
 		return NotSameUsedSpace
