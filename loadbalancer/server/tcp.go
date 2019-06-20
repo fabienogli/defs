@@ -62,7 +62,6 @@ func handleConnection(c net.Conn) {
 		_, _ = c.Write([]byte(string(UnknownStorage)))
 		return
 	}
-	log.Printf("Original args: %v", args)
 	handleRequest(Query(args[0]), args[1:], c)
 }
 
