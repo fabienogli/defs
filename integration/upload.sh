@@ -7,7 +7,7 @@ ADDRESS='docker:8080/file'
 cat /etc/hosts
 
 echo  $CONTENT > $FILENAME
-OG_HASH=$(sha256sum $FILENAME)
+OG_HASH=$(sha256sum $CONTENT)
 RESULT=$(curl -X POST -F filename=$FILENAME -F file=@$FILENAME $ADDRESS)
 KEY=$(echo $RESULT | cut -d ":" -f 1 | tr -d \" | tr -d \{)
 RESPONSE=$(echo $RESULT | cut -d ":" -f 2 | tr -d \" | tr -d \})
@@ -30,4 +30,3 @@ if [[ NEW_HASH != OG_HASH ]]; then
     exit 1
 fi
 exit 0
-
