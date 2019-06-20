@@ -2,9 +2,7 @@
 ## UPLOADING FILE
 FILENAME='test'
 CONTENT='This is a test'
-ADDRESS='supervisor:8080/file'
-
-ping 0.0.0.0 -p 8080
+ADDRESS='172.17.0.3:8080/file'
 
 echo  $CONTENT > $FILENAME
 OG_HASH=$(sha256sum $FILENAME)
