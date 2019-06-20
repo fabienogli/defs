@@ -2,7 +2,7 @@
 ## UPLOADING FILE
 FILENAME='test'
 CONTENT='This is a test'
-ADDRESS='127.0.0.1:8080/file'
+ADDRESS='supervisor:8080/file'
 
 ping 127.0.0.1 -p 8080
 ping localhost -p 8080
