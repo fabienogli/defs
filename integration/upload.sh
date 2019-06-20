@@ -1,9 +1,11 @@
-#!/bin/bash
+#!/bin/sh
 ## UPLOADING FILE
 FILENAME='test'
 CONTENT='This is a test'
-ADDRESS='localhost:8080/file'
+ADDRESS='127.0.0.1:8080/file'
 
+ping 127.0.0.1 -p 8080
+ping localhost -p 8080
 
 echo  $CONTENT > $FILENAME
 OG_HASH=$(sha256sum $FILENAME)
