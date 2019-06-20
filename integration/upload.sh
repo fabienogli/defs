@@ -1,4 +1,7 @@
 #!/bin/sh
+
+ADDRESS='docker:8080/file'
+
 ## UPLOADING FILE
 FILENAME='test'
 CONTENT='This is a test'
