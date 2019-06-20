@@ -2,9 +2,11 @@
 ## UPLOADING FILE
 FILENAME='test'
 CONTENT='This is a test'
-
+echo "Writing the file"
 echo  $CONTENT > $FILENAME
 OG_HASH=$(sha256sum $FILENAME)
+
+echo "Uploading the file"
 RESULT=$(curl -X POST -F filename=$FILENAME -F file=@$FILENAME $ADDRESS)
 KEY=$(echo $RESULT | cut -d ":" -f 1 | tr -d \" | tr -d \{)
 RESPONSE=$(echo $RESULT | cut -d ":" -f 2 | tr -d \" | tr -d \})
