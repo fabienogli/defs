@@ -26,5 +26,8 @@ unit_tests:
 integration_tests:
   stage: test
   script:
-    - ./integration/wait-for.sh
+    - ./utils/wait-for.sh
     - ./integration/upload.sh
+    - ./integration/upload_tmp.sh
+  only:
+    - develop
