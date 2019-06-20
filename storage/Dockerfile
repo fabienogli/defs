@@ -13,10 +13,11 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go install ./...
 RUN apt-get update && apt-get install at -y
 RUN /etc/init.d/atd start
 
-FROM scratch as prod
+FROM alpine as prod
 
 COPY --from=build /etc/passwd /etc/passwd
 COPY --from=build /etc/group /etc/group
 COPY --from=build --chown=go /go/bin/storage /go/bin/storage
+RUN apt-get update && apt-get install at -y
 
 USER go

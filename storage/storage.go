@@ -90,12 +90,16 @@ func DeleteFile(filename string) {
 }
 
 func setTTL(ttl string, hash string) error{
-	echo := exec.Command("echo", fmt.Sprintf("rm %s%s", getAbsDirectory(), hash))
+	cmd := fmt.Sprintf("rm %s%s", getAbsDirectory(), hash)
+	echo := exec.Command("echo", cmd)
 	at := exec.Command("at", fmt.Sprintf("now + %s", ttl))
 	r, w := io.Pipe()
 
 	echo.Stdout = w
 	at.Stdin = r
+
+	//at.Stdout = os.Stdout
+	at.Stderr = os.Stdout
 
 	err := echo.Start()
 	if err != nil {
@@ -171,7 +175,7 @@ func sanitarizeString(toSanitarize string) string {
 }
 
 func writeFileToDisk(filename string, r io.Reader, sizeLimit int64) error{
-	done := make(chan bool)
+	done := make(chan bool, 1)
 	errs := make(chan error)
 
 	go tcp.Store(done, errs, filename)

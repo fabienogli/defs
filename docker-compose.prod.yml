@@ -40,7 +40,7 @@ services:
     build:
       context: ./storage
       target: build
-    entrypoint: /go/bin/storage
+    entrypoint: ./entrypoint.sh
     volumes:
       - ./storage/:/go/src/storage/
       - ./storage/drive:/storage/tmp

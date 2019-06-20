@@ -43,7 +43,7 @@ services:
     build:
       context: ./storage
       target: build
-    entrypoint: CompileDaemon -log-prefix=false -build="go install ./..." -command="/go/bin/storage"
+    entrypoint: ./entrypoint.sh
     volumes:
       - ./storage/:/go/src/storage/
       - ./storage/drive:/storage/tmp

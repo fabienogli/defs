@@ -131,7 +131,8 @@ func Store(done chan bool, errs chan error, filename string) {
 	case <-done:
 		query = craftQuery(StoreDone, filename)
 		writeQueryToConn(query, conn)
-	case <-errs:
+	case err := <-errs:
+		log.Println(err)
 		conn.Close()
 		return
 	}
