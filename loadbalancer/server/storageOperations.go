@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -43,7 +44,9 @@ func store(hash string, c net.Conn) error {
 			log.Printf("Unknown code")
 		}
 	} else {
-		log.Printf("Error while reading file : %v\nArguments: %v", err, args)
+		if err != io.EOF {
+			log.Printf("Error while reading file : %v\nArguments: %v", err, args)
+		}
 	}
 	err = file.SetExp(TTL, conn)
 	return err
