@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 	s "supervisor/storage"
-	u "supervisor/utils"
+	u "gitlab.com/fabienogli/http-utils"
 	"time"
 )
 
