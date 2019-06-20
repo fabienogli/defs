@@ -231,7 +231,7 @@ func download(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 	if err != nil {
 		if os.IsNotExist(err) {
-			u.RespondWithMsg(w, http.StatusNotFound, fmt.Sprintf("file %s not found", fileName))
+			u.RespondWithError(w, http.StatusNotFound, err)
 			return
 		}
 		u.RespondWithError(w, http.StatusInternalServerError, err)
