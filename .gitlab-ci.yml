@@ -26,5 +26,8 @@ unit_tests:
 integration_tests:
   stage: test
   script:
+    - ps aux
+    - ip a
+    - docker-compose logs
     - sleep 45
-    - . integration/upload.sh
+    - ./integration/upload.sh
