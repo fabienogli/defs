@@ -1,25 +1,22 @@
 FROM golang:1.12 as build
-RUN groupadd -g 2000 go \
- && useradd -m  -u 2001 -g go go
-WORKDIR /go/src/storage/
 
+WORKDIR /go/src/storage/
+RUN useradd --user-group go
 COPY go.mod .
 COPY go.sum .
-
 ENV GO111MODULE on
-
 RUN go mod download
 #For HotReloading
-RUN ["go", "get", "github.com/githubnemo/CompileDaemon"]
+RUN go get github.com/githubnemo/CompileDaemon
+COPY . .
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go install ./...
 RUN apt-get update && apt-get install at -y
 RUN /etc/init.d/atd start
 
+FROM scratch as prod
 
-FROM scratch
+COPY --from=build /etc/passwd /etc/passwd
+COPY --from=build /etc/group /etc/group
+COPY --from=build --chown=go /go/bin/storage /go/bin/storage
 
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /go/bin/storage /go/bin/storage
-
-USER appuser
-
-ENTRYPOINT [ "/go/bin/hello" ]
+USER go
