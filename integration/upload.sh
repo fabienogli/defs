@@ -25,7 +25,7 @@ fi
 
 ## DOWNLOADING FILE
 OUTPUT_FILE="output"
-curl -X POST -F filename=$FILENAME -F file=@$FILENAME $ADDRESS/$RESPONSE > $OUTPUT_FILE
+curl $ADDRESS/$RESPONSE > $OUTPUT_FILE
 NEW_HASH=$(sha256sum $OUTPUT_FILE)
 if [[ NEW_HASH != OG_HASH ]]; then
     echo "Different hash for same file, file is \n"

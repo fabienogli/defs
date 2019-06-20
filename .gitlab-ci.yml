@@ -26,9 +26,4 @@ unit_tests:
 integration_tests:
   stage: test
   script:
-    - ip a
-    - cat /etc/hosts
-    - sleep 45
-    - netstat -a
-    - docker-compose logs
     - ./integration/upload.sh
