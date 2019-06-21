@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"storage/utils"
 )
 
 func TestWriteQuery(t *testing.T) {
@@ -30,7 +31,7 @@ func TestGetId(t *testing.T) {
 
 	file.Close()
 
-	err := os.RemoveAll(os.Getenv("STORAGE_ID_FILE"))
+	err := os.RemoveAll(utils.GetRequiredEnv("STORAGE_ID_FILE"))
 	if err != nil {
 		t.Errorf("could not delete storage file : %s", err)
 	}
@@ -43,7 +44,7 @@ func TestGetId(t *testing.T) {
 }
 
 func createTestFileId(t *testing.T) *os.File {
-	path := os.Getenv("STORAGE_ID_FILE")
+	path := utils.GetRequiredEnv("STORAGE_ID_FILE")
 	var file *os.File
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		file, err = os.Create(path)
@@ -89,7 +90,7 @@ func copyIdFile(path string) {
 
 
 func cleanUpBackup() {
-	path := os.Getenv("STORAGE_ID_FILE")
+	path := utils.GetRequiredEnv("STORAGE_ID_FILE")
 	os.RemoveAll(path)
 
 	backupPath := path + ".bck"

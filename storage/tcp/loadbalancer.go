@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"storage/utils"
 )
 
 type QueryCode uint8
@@ -39,14 +40,14 @@ type Args struct {
 }
 
 func GetTCPAddr() string {
-	ip := os.Getenv("LOADBALANCER_IP")
-	port := os.Getenv("LOADBALANCER_PORT")
+	ip := utils.GetRequiredEnv("LOADBALANCER_IP")
+	port := utils.GetRequiredEnv("LOADBALANCER_PORT")
 
 	return ip + ":" + port
 }
 
 func GetId() string {
-	idPath := os.Getenv("STORAGE_ID_FILE")
+	idPath := utils.GetRequiredEnv("STORAGE_ID_FILE")
 	idFile, err := os.Open(idPath)
 	if err != nil {
 		//All errors means that I don't have an id
@@ -83,16 +84,8 @@ func Subscribe() {
 	conn := ConnectToLoadBalancer()
 	defer conn.Close()
 
-	dns := os.Getenv("STORAGE_DNS")
-	if dns == "" {
-		log.Panicf("The STORAGE_DNS env variable must be set")
-	}
-
-	totalSpace := os.Getenv("STORAGE_SPACE")
-	if totalSpace == "" {
-		log.Panicf("The STORAGE_SPACE env variable must be set")
-	}
-
+	dns := utils.GetRequiredEnv("STORAGE_DNS")
+	totalSpace := utils.GetRequiredEnv("STORAGE_SPACE")
 	usedSpace := fmt.Sprintf("%d", getUsedSpace())
 
 	args := Args{
@@ -202,10 +195,8 @@ func readResponse(conn net.Conn) string {
 }
 
 func createIdFile(id string) {
-	idPath := os.Getenv("STORAGE_ID_FILE")
-	if idPath == "" {
-		log.Panicf("no STORAGE_ID_FILE was set, please make sure to export this env variable")
-	}
+	idPath := utils.GetRequiredEnv("STORAGE_ID_FILE")
+
 	idFile, err := os.OpenFile(idPath, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		log.Panicf("could not open %s : %s", idPath, err)
@@ -222,12 +213,12 @@ func createIdFile(id string) {
 }
 
 func getUsedSpace() int64 {
-	path := os.Getenv("STORAGE_DIR")
+	path := utils.GetRequiredEnv("STORAGE_DIR")
 	var size int64
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return 0
 	}
-	err := filepath.Walk(os.Getenv("STORAGE_DIR"), func(_ string, info os.FileInfo, err error) error {
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

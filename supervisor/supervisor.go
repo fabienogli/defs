@@ -3,14 +3,14 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
+	"supervisor/utils"
 	"supervisor/routers"
 )
 
 func main() {
 	http.Handle("/", routers.InitRoutes())
 
-	port := os.Getenv("SUPERVISOR_PORT")
+	port := utils.GetRequiredEnv("SUPERVISOR_PORT")
 	addr := ":" + port
 	log.Println("Listening on", addr)
 	log.Fatal(http.ListenAndServe(addr, nil))

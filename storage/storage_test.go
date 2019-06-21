@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"storage/utils"
 )
 
 func TestSanitarizeString(t *testing.T) {
@@ -58,7 +59,7 @@ func TestParseHash(t *testing.T) {
 }
 
 func TestGetAbsDirectory(t *testing.T) {
-	expected := os.Getenv("STORAGE_DIR")
+	expected := utils.GetRequiredEnv("STORAGE_DIR")
 	path := getAbsDirectory()
 	if path != expected {
 		t.Errorf("The path should be %s, was %s", expected, path)

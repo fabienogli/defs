@@ -12,11 +12,11 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	s "supervisor/storage"
 	u "gitlab.com/fabienogli/http-utils"
+	"supervisor/utils"
 	"time"
 )
 
@@ -33,7 +33,7 @@ func hashSHA256(fileName string) string {
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
-	limitInMbStr := os.Getenv("STORAGE_LIMIT")
+	limitInMbStr := utils.GetRequiredEnv("STORAGE_LIMIT")
 	limitInMb, _ := strconv.Atoi(limitInMbStr)
 	maxSizeInByte := int64(limitInMb * 1024 * 1024)
 	r.ParseMultipartForm(maxSizeInByte)
@@ -215,7 +215,7 @@ func download(w http.ResponseWriter, r *http.Request) {
 	url := baseUrl + "download/" + hash
 
 	proxyRequest, err := http.NewRequest(http.MethodGet, url, r.Body)
-	hostName := os.Getenv("SUPERVISOR_HTTP_HOST")
+	hostName := utils.GetRequiredEnv("SUPERVISOR_HTTP_HOST")
 	proxyRequest.Header.Set("HOST", hostName)
 
 	// We may want to filter some headers, otherwise we could just use a shallow copy
@@ -260,8 +260,8 @@ func getBaseUrl(response string, w http.ResponseWriter) (string, error) {
 	}
 
 	storeDns := respPart[1]
-	storagePortStr := os.Getenv("STORAGE_PORT")
-	protocol := os.Getenv("STORAGE_PROTOCOL")
+	storagePortStr := utils.GetRequiredEnv("STORAGE_PORT")
+	protocol := utils.GetRequiredEnv("STORAGE_PROTOCOL")
 
 	url := fmt.Sprintf("%s://%s:%s/", protocol, storeDns, storagePortStr)
 	return url, nil

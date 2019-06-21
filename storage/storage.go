@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"storage/tcp"
+	"storage/utils"
 	u "gitlab.com/fabienogli/http-utils"
 	"strconv"
 	"strings"
@@ -21,7 +22,7 @@ import (
 var downloadDir string
 
 func getAbsDirectory() string {
-	path := os.Getenv("STORAGE_DIR")
+	path := utils.GetRequiredEnv("STORAGE_DIR")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		_ = os.MkdirAll(path, 0600)
 	}
@@ -30,7 +31,7 @@ func getAbsDirectory() string {
 }
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
-	limitInMbStr := os.Getenv("STORAGE_LIMIT")
+	limitInMbStr := utils.GetRequiredEnv("STORAGE_LIMIT")
 	limitInMb, _ := strconv.Atoi(limitInMbStr)
 	maxSizeInByte := int64(limitInMb * 1024 * 1024)
 
@@ -291,7 +292,7 @@ func main() {
 		r.HandleFunc("/download/{file}", download).Methods("GET")
 		http.Handle("/", r)
 
-		port := os.Getenv("STORAGE_PORT")
+		port := utils.GetRequiredEnv("STORAGE_PORT")
 		addr := ":" + port
 		log.Println("Listening on", addr)
 		log.Fatal(http.ListenAndServe(addr, nil))

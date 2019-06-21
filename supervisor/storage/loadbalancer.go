@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
+	"supervisor/utils"
 )
 
 type StoreResp int
@@ -39,8 +39,8 @@ type LoadBalancerClient struct {
 }
 
 func GetUDPAddrOfLB() (*net.UDPAddr,error) {
-	host := os.Getenv("LOADBALANCER_IP")
-	portStr := os.Getenv("LOADBALANCER_PORT")
+	host := utils.GetRequiredEnv("LOADBALANCER_IP")
+	portStr := utils.GetRequiredEnv("LOADBALANCER_PORT")
 
 	ips, err := net.LookupIP(host)
 	if err != nil {
