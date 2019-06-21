@@ -17,6 +17,10 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
+	"github.com/rakanalh/scheduler"
+	toto "github.com/rakanalh/scheduler/storage"
+
 )
 
 var downloadDir string
@@ -90,8 +94,34 @@ func DeleteFile(filename string) {
 	}
 }
 
+func routine(ttl, name string) {
+		storage := toto.NewSqlite3Storage(
+		toto.Sqlite3Config{
+			DbName: "task_store.db",
+		},
+	)
+	if err := storage.Connect(); err != nil {
+		log.Fatal("Could not connect to db", err)
+	}
+
+	if err := storage.Initialize(); err != nil {
+		log.Fatal("Could not intialize database", err)
+	}
+	s := scheduler.New(storage)
+	second,_  := strconv.Atoi(ttl)
+	// Start a task without arguments
+	if _, err := s.RunAfter(time.Duration(second) * time.Second, tcp.Delete, name); err != nil {
+log.Fatal(err)
+	}
+
+
+	s.Start()
+	s.Wait()
+}
+
 func setTTL(ttl string, hash string) error{
 	cmd := fmt.Sprintf("rm %s%s", getAbsDirectory(), hash)
+	go routine(ttl, hash)
 	echo := exec.Command("echo", cmd)
 	at := exec.Command("at", fmt.Sprintf("now + %s", ttl))
 	r, w := io.Pipe()
@@ -270,6 +300,7 @@ func download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
 
 func main() {
 

@@ -19,7 +19,7 @@ const (
 	Unsub             QueryCode = iota
 	StoreStart        QueryCode = iota
 	StoreDone         QueryCode = iota
-	Delete            QueryCode = iota
+	DeleteCode            QueryCode = iota
 )
 
 type ResponseCode string
@@ -104,6 +104,23 @@ func Unsubscribe() {
 
 	id := GetId()
 	query := craftQuery(Unsub, id)
+
+	writeQueryToConn(query, conn)
+	response := readResponse(conn)
+	responseParts := strings.Split(response, " ")
+	switch ResponseCode(responseParts[0]) {
+	case Ok:
+	//Subscribe went well
+	default:
+		log.Panicf("There was a problem unsubsribing... %s : ", response)
+	}
+}
+
+func Delete(hash string) {
+	conn := ConnectToLoadBalancer()
+	defer conn.Close()
+
+	query := craftQuery(DeleteCode, hash)
 
 	writeQueryToConn(query, conn)
 	response := readResponse(conn)
