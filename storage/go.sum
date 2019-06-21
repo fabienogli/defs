@@ -1,0 +1,4 @@
+github.com/gorilla/mux v1.7.2 h1:zoNxOV7WjqXptQOVngLmcSQgXmgk4NMz1HibBchjl/I=
+github.com/gorilla/mux v1.7.2/go.mod h1:1lud6UwP+6orDFRuTfBEV8e9/aOM/c4fVVCaMa2zaAs=
+gitlab.com/fabienogli/http-utils v0.0.0-20190612212555-03055689a9bc h1:1iRtOUcn6mhDFVhUYu9lY+9SIZsmqSJgLcwU1E6GnSk=
+gitlab.com/fabienogli/http-utils v0.0.0-20190612212555-03055689a9bc/go.mod h1:tsI97n7wcO+tmDdrlzYppjNy/Okd58/ouI9aLxukHlc=

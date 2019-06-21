@@ -3,10 +3,7 @@ services:
   supervisor:
     build:
       context: ./supervisor
-      target: build
-    volumes:
-      - ./supervisor:/go/src/supervisor/
-    entrypoint: CompileDaemon -log-prefix=false -build="go install ./..." -command="/go/bin/supervisor"
+    entrypoint: /go/bin/supervisor
     env_file:
       - ./supervisor/.env
     ports:
@@ -17,10 +14,8 @@ services:
   loadbalancer:
     build:
       context: ./loadbalancer
-      target: build
-    volumes:
-      - ./loadbalancer:/go/src/loadbalancer/
-    entrypoint: CompileDaemon -log-prefix=false -build="go install ./..." -command="/go/bin/loadbalancer"
+      target: prod
+    entrypoint: /go/bin/loadbalancer
     expose:
       - 8081
     env_file:
@@ -43,9 +38,8 @@ services:
     build:
       context: ./storage
       target: build
-    entrypoint: ./entrypoint.sh
+    entrypoint: ./entrypoint.prod.sh
     volumes:
-      - ./storage/:/go/src/storage/
       - ./storage/drive:/storage/tmp
     expose:
       - 8082

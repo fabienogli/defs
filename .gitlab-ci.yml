@@ -1,0 +1,33 @@
+image: tiangolo/docker-with-compose
+
+services:
+  - docker:dind
+
+stages:
+  - test
+
+before_script:
+  - apk add go curl
+  - go run utils/main.go
+  - docker-compose up -d
+
+after_script:
+  - docker-compose down -v
+
+unit_tests:
+  stage: test
+  script:
+    - docker-compose exec -T loadbalancer go test ./...
+    - docker-compose exec -T supervisor go test ./...
+    - docker-compose exec -T storage go test ./...
+  only:
+    - develop
+
+integration_tests:
+  stage: test
+  script:
+    - ./utils/wait-for.sh
+    - ./integration/upload.sh
+    - ./integration/upload_tmp.sh
+  only:
+    - develop
